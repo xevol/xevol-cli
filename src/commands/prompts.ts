@@ -47,9 +47,9 @@ export function registerPromptsCommand(program: Command): void {
               ? `"${sanitized.replace(/"/g, '""')}"`
               : sanitized;
           };
-          console.log("ID,Name");
+          console.log("ID,Description");
           for (const item of items) {
-            console.log([item.id, item.name ?? "—"].map(csvQuote).join(","));
+            console.log([item.id, item.description ?? "—"].map(csvQuote).join(","));
           }
           return;
         }
@@ -62,8 +62,12 @@ export function registerPromptsCommand(program: Command): void {
           return;
         }
 
-        const rows = items.map((item) => [item.id, item.name ?? "—"]);
-        console.log(renderTable(["ID", "Name"], rows));
+        const truncate = (s: string, max: number) => {
+          const oneLine = s.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+          return oneLine.length > max ? oneLine.slice(0, max - 1) + "…" : oneLine;
+        };
+        const rows = items.map((item) => [item.id, item.description ? truncate(item.description, 60) : "—"]);
+        console.log(renderTable(["ID", "Description"], rows));
       } catch (error) {
         console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;

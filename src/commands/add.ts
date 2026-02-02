@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
@@ -15,8 +15,10 @@ const SSE_IDLE_TIMEOUT_MS = 30_000;
 interface AddOptions {
   lang?: string;
   wait?: boolean;
+  noWait?: boolean;
   json?: boolean;
-  spikes?: string;
+  analyze?: string;
+  spikes?: string;  // hidden alias for backwards compat
   stream?: boolean;
 }
 
@@ -69,15 +71,17 @@ export function registerAddCommand(program: Command): void {
     .description("Submit a YouTube URL for transcription")
     .argument("<youtubeUrl>", "YouTube URL")
     .option("--lang <code>", "Output language", "en")
-    .option("--wait", "Wait for completion")
-    .option("--spikes <prompts>", "Comma-separated prompt IDs to generate spikes after transcription (requires --wait)")
-    .option("--stream", "Stream spike content in real-time via SSE (use with --wait --spikes)")
+    .option("--no-wait", "Don't wait for completion (fire-and-forget)")
+    .option("--analyze <prompts>", "Comma-separated prompt IDs to generate analysis after transcription")
+    .addOption(new Option("--spikes <prompts>").hideHelp())
+    .option("--stream", "Stream analysis content in real-time via SSE (use with --analyze)")
     .option("--json", "Raw JSON output")
     .addHelpText('after', `
 Examples:
   $ xevol add "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-  $ xevol add "https://youtu.be/dQw4w9WgXcQ" --lang kk --wait
-  $ xevol add "https://www.youtube.com/watch?v=..." --wait --spikes review,summary --stream`)
+  $ xevol add "https://youtu.be/dQw4w9WgXcQ" --lang kk
+  $ xevol add "https://www.youtube.com/watch?v=..." --analyze review,summary --stream
+  $ xevol add "https://www.youtube.com/watch?v=..." --no-wait`)
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
         // Validate YouTube URL before doing anything
@@ -122,23 +126,27 @@ Examples:
           console.log(`Status: ${status}`);
         }
 
-        if (options.wait) {
-          const promptIds = options.spikes ? options.spikes.split(",").map((s) => s.trim()).filter(Boolean) : [];
+        // --analyze takes precedence, fall back to --spikes (hidden alias)
+        const analyzeFlag = options.analyze ?? options.spikes;
+
+        // Default: wait for completion. --no-wait skips.
+        if (options.wait !== false) {
+          const promptIds = analyzeFlag ? analyzeFlag.split(",").map((s) => s.trim()).filter(Boolean) : [];
           const totalSteps = 1 + promptIds.length;
           if (!options.json) {
             console.log(chalk.dim(`[1/${totalSteps}] Transcribing...`));
           }
 
           const finalResponse = await waitForCompletion(id, token, apiUrl);
-          if (options.json && !options.spikes) {
+          if (options.json && !analyzeFlag) {
             printJson(finalResponse ?? response);
           }
 
-          // Generate spikes if requested
-          if (options.spikes && finalResponse) {
+          // Generate analysis if requested
+          if (analyzeFlag && finalResponse) {
             const status = extractStatus(finalResponse)?.toLowerCase() ?? "";
             if (!status.includes("complete")) {
-              console.error(chalk.red("Error:") + " Transcription did not complete — skipping spike generation.");
+              console.error(chalk.red("Error:") + " Transcription did not complete — skipping analysis generation.");
             } else if (options.stream) {
               // === STREAMING MODE ===
               const lang = options.lang ?? "en";
@@ -159,9 +167,9 @@ Examples:
                 const promptId = promptIds[i];
                 const stepNum = i + 2; // step 1 was transcription
                 if (!options.json) {
-                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating spike: ${promptId}...`));
+                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating analysis: ${promptId}...`));
                 }
-                const spinner = startSpinner(`Creating spike: ${promptId}...`);
+                const spinner = startSpinner(`Creating analysis: ${promptId}...`);
 
                 try {
                   // Create spike via POST
@@ -187,7 +195,7 @@ Examples:
                     (spikeResponse.content as string) ??
                     (spikeResponse.markdown as string);
                   if (cachedContent) {
-                    spinner.succeed(`Spike ready: ${promptId} (cached)`);
+                    spinner.succeed(`Analysis ready: ${promptId} (cached)`);
                     if (!options.json) {
                       console.log(chalk.bold.cyan(`\n─── ${promptId} ───`));
                       console.log(cachedContent);
@@ -199,13 +207,13 @@ Examples:
                   }
 
                   if (!spikeId) {
-                    spinner.fail(`No spikeId returned for ${promptId}`);
+                    spinner.fail(`No analysis ID returned for ${promptId}`);
                     spikeState.status = "error";
                     await saveJobState(jobState);
                     continue;
                   }
 
-                  spinner.succeed(`Spike created: ${promptId}`);
+                  spinner.succeed(`Analysis created: ${promptId}`);
                   spikeState.status = "streaming";
                   await saveJobState(jobState);
 
@@ -220,11 +228,11 @@ Examples:
                   await saveJobState(jobState);
 
                   if (!options.json) {
-                    console.log(chalk.green(`✔ Spike complete: ${promptId}`));
+                    console.log(chalk.green(`✔ Analysis complete: ${promptId}`));
                   }
                   spikeResults.push({ spikeId, promptId, content: result.content });
                 } catch (error) {
-                  spinner.fail(`Spike failed: ${promptId} — ${(error as Error).message}`);
+                  spinner.fail(`Analysis failed: ${promptId} — ${(error as Error).message}`);
                   const existingSpike = jobState.spikes.find((s) => s.promptId === promptId);
                   if (existingSpike) {
                     existingSpike.status = "error";
@@ -247,9 +255,9 @@ Examples:
                 const promptId = promptIds[i];
                 const stepNum = i + 2;
                 if (!options.json) {
-                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating spike: ${promptId}...`));
+                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating analysis: ${promptId}...`));
                 }
-                const spinner = startSpinner(`Generating spike: ${promptId}...`);
+                const spinner = startSpinner(`Generating analysis: ${promptId}...`);
                 const started = Date.now();
                 const maxAttempts = 120;
 
@@ -271,7 +279,7 @@ Examples:
                     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
                       await new Promise((resolve) => setTimeout(resolve, 5000));
                       const elapsedSeconds = Math.floor((Date.now() - started) / 1000);
-                      spinner.text = `Generating spike: ${promptId}... (${elapsedSeconds}s)`;
+                      spinner.text = `Generating analysis: ${promptId}... (${elapsedSeconds}s)`;
 
                       spikeResponse = (await apiFetch(`/spikes/${id}`, {
                         method: "POST",
@@ -289,10 +297,10 @@ Examples:
                     }
                   }
 
-                  spinner.succeed(`Spike ready: ${promptId}`);
+                  spinner.succeed(`Analysis ready: ${promptId}`);
                   spikeResults.push(spikeResponse);
                 } catch (error) {
-                  spinner.fail(`Spike failed: ${promptId} — ${(error as Error).message}`);
+                  spinner.fail(`Analysis failed: ${promptId} — ${(error as Error).message}`);
                 }
               }
 

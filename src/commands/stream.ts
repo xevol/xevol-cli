@@ -130,15 +130,15 @@ export async function streamSpikeToTerminal(
 export function registerStreamCommand(program: Command): void {
   program
     .command("stream")
-    .description("Stream a spike's content in real-time via SSE")
-    .argument("<spikeId>", "Spike ID to stream")
+    .description("Stream analysis content in real-time via SSE")
+    .argument("<spikeId>", "Analysis ID to stream")
     .option("--json", "Output raw SSE events as JSON")
     .option("--last-event-id <id>", "Resume from a specific event ID")
     .addHelpText('after', `
 Examples:
-  $ xevol stream spike_abc123
-  $ xevol stream spike_abc123 --json
-  $ xevol stream spike_abc123 --last-event-id 42`)
+  $ xevol stream abc123
+  $ xevol stream abc123 --json
+  $ xevol stream abc123 --last-event-id 42`)
     .action(async (spikeId: string, options: StreamOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};

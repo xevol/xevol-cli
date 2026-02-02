@@ -11,13 +11,13 @@ interface SpikesOptions {
   json?: boolean;
 }
 
-function extractSpikes(response: Record<string, unknown>): Record<string, unknown>[] {
-  const spikes =
+function extractResults(response: Record<string, unknown>): Record<string, unknown>[] {
+  const results =
     (response.spikes as Record<string, unknown>[] | undefined) ??
     (response.data as Record<string, unknown>[] | undefined) ??
     (response.items as Record<string, unknown>[] | undefined);
 
-  if (Array.isArray(spikes)) return spikes;
+  if (Array.isArray(results)) return results;
 
   if (response.content || response.markdown || response.text) {
     return [response];
@@ -26,18 +26,18 @@ function extractSpikes(response: Record<string, unknown>): Record<string, unknow
   return [];
 }
 
-function extractSpikeText(spike: Record<string, unknown>): string | undefined {
+function extractResultText(result: Record<string, unknown>): string | undefined {
   const value =
-    (spike.markdown as string | undefined) ??
-    (spike.content as string | undefined) ??
-    (spike.text as string | undefined) ??
-    (spike.body as string | undefined);
+    (result.markdown as string | undefined) ??
+    (result.content as string | undefined) ??
+    (result.text as string | undefined) ??
+    (result.body as string | undefined);
   return value;
 }
 
-async function fetchSpikes(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
-  // POST /spikes/:id both creates new spikes AND returns existing ones (idempotent).
-  // If a spike with the same promptId+outputLang already exists, the API returns it directly.
+async function fetchAnalysis(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
+  // POST /spikes/:id both creates and returns analysis (idempotent).
+  // If analysis with the same promptId+outputLang already exists, the API returns it directly.
   return (await apiFetch(`/spikes/${transcriptionId}`, {
     method: "POST",
     body: { promptId, outputLang },
@@ -46,28 +46,28 @@ async function fetchSpikes(transcriptionId: string, token: string, apiUrl: strin
   })) as Record<string, unknown>;
 }
 
-async function waitForSpikes(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
-  const spinner = startSpinner("Generating spikes...");
+async function waitForAnalysis(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
+  const spinner = startSpinner("Generating analysis...");
   const started = Date.now();
   const maxAttempts = 120;
 
   try {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const response = await fetchSpikes(transcriptionId, token, apiUrl, promptId, outputLang);
-      const spikes = extractSpikes(response);
+      const response = await fetchAnalysis(transcriptionId, token, apiUrl, promptId, outputLang);
+      const results = extractResults(response);
 
       const elapsedSeconds = Math.floor((Date.now() - started) / 1000);
-      spinner.text = `Generating spikes... (${elapsedSeconds}s)`;
+      spinner.text = `Generating analysis... (${elapsedSeconds}s)`;
 
-      if (spikes.length > 0) {
-        spinner.succeed("Spikes ready");
+      if (results.length > 0) {
+        spinner.succeed("Analysis ready");
         return response;
       }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
-    spinner.fail("Timed out waiting for spikes to generate.");
+    spinner.fail("Timed out waiting for analysis to generate.");
     return null;
   } catch (error) {
     spinner.fail((error as Error).message);
@@ -75,20 +75,21 @@ async function waitForSpikes(transcriptionId: string, token: string, apiUrl: str
   }
 }
 
-export function registerSpikesCommand(program: Command): void {
+export function registerAnalyzeCommand(program: Command): void {
   program
-    .command("spikes")
-    .description("View or generate spikes for a transcription")
+    .command("analyze")
+    .alias("spikes")
+    .description("View or generate analysis for a transcription")
     .argument("<id>", "Transcription ID")
-    .option("--generate", "Generate spikes if missing")
+    .option("--generate", "Generate analysis if missing")
     .option("--prompt <id>", "Prompt ID for generation")
     .option("--lang <code>", "Output language", "en")
     .option("--json", "Raw JSON output")
     .addHelpText('after', `
 Examples:
-  $ xevol spikes abc123
-  $ xevol spikes abc123 --prompt facts --lang kk
-  $ xevol spikes abc123 --generate --prompt review --json`)
+  $ xevol analyze abc123
+  $ xevol analyze abc123 --prompt facts --lang kk
+  $ xevol analyze abc123 --generate --prompt review --json`)
     .action(async (id: string, options: SpikesOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -105,19 +106,19 @@ Examples:
         const promptId = options.prompt ?? "review";
         const lang = options.lang ?? "en";
 
-        // POST is idempotent — returns existing spike or creates + queues a new one
-        let response = await fetchSpikes(id, token, apiUrl, promptId, lang);
-        let spikes = extractSpikes(response);
+        // POST is idempotent — returns existing analysis or creates + queues a new one
+        let response = await fetchAnalysis(id, token, apiUrl, promptId, lang);
+        let results = extractResults(response);
 
-        // If we got a spikeId but no content, the spike is being generated — poll for it
-        if (spikes.length === 0 && (response.spikeId as string | undefined)) {
-          const finalResponse = await waitForSpikes(id, token, apiUrl, promptId, lang);
+        // If we got a spikeId but no content, the analysis is being generated — poll for it
+        if (results.length === 0 && (response.spikeId as string | undefined)) {
+          const finalResponse = await waitForAnalysis(id, token, apiUrl, promptId, lang);
           if (!finalResponse) {
             process.exitCode = 1;
             return;
           }
           response = finalResponse;
-          spikes = extractSpikes(response);
+          results = extractResults(response);
         }
 
         if (options.json) {
@@ -128,21 +129,21 @@ Examples:
         const title =
           (response.title as string | undefined) ??
           (response.transcriptionTitle as string | undefined) ??
-          (spikes[0]?.title as string | undefined) ??
+          (results[0]?.title as string | undefined) ??
           id;
 
-        console.log(chalk.bold(`Spikes for "${title}"`));
+        console.log(chalk.bold(`Analysis for "${title}"`));
         console.log(divider());
 
-        const content = spikes
-          .map((spike) => extractSpikeText(spike))
+        const content = results
+          .map((result) => extractResultText(result))
           .filter((value): value is string => Boolean(value))
           .join("\n\n");
 
         if (content) {
           console.log(content);
         } else {
-          console.log("No spike content available.");
+          console.log("No analysis content available.");
         }
       } catch (error) {
         console.error(chalk.red("Error:") + " " + (error as Error).message);

@@ -19,13 +19,13 @@ When a user adds a YouTube URL, the CLI should provide a real-time streaming exp
 
 ### Existing Infrastructure (CLI side)
 - `xevol add <url>` — submits URL, polls `/v1/status/:id` every 5s
-- `xevol spikes <id>` — POST creates/fetches spike, polls if pending
+- `xevol analyze <id>` — POST creates/fetches spike, polls if pending
 - No streaming, no SSE consumption
 
 ## Proposed Flow
 
 ```
-$ xevol add https://youtube.com/watch?v=abc --stream --spikes review,facts
+$ xevol add https://youtube.com/watch?v=abc --stream --analyze review,facts
 
 ⠋ Downloading video...
 ✔ Downloaded: "How to Build a Startup" (12:34) — Y Combinator
@@ -55,7 +55,7 @@ months, and measuring retention as the primary metric...
 
 ## Commands
 
-### `xevol add <url> --stream [--spikes <prompts>]`
+### `xevol add <url> --stream [--analyze <prompts>]`
 
 Full pipeline in one command:
 1. Submit URL → get transcription ID
@@ -163,7 +163,7 @@ async function* streamSSE(url: string, token: string, lastEventId?: string) {
 ### Phase 1: Enhanced Polling (works with current API)
 - Better progress display during `add --wait`
 - Stream spike content via existing SSE endpoint (`/spikes/stream/:spikeId`)
-- `--spikes` flag on add command (already in progress)
+- `--analyze` flag on add command (already in progress)
 - Job state saved locally for resume
 
 ### Phase 2: True Streaming

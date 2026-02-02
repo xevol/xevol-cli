@@ -38,7 +38,7 @@ export function registerResumeCommand(program: Command): void {
         if (!jobState) {
           console.error(
             chalk.red(`No job state found for ${id}.`),
-            "\nMake sure you previously ran `xevol add --stream --spikes` for this transcription.",
+            "\nMake sure you previously ran `xevol add --stream --analyze` for this transcription.",
           );
           process.exitCode = 1;
           return;
@@ -49,7 +49,7 @@ export function registerResumeCommand(program: Command): void {
         if (!options.json) {
           console.log(chalk.bold(`Resuming job for transcription: ${id}`));
           console.log(chalk.dim(`URL: ${jobState.url}`));
-          console.log(chalk.dim(`Spikes: ${jobState.spikes.length}`));
+          console.log(chalk.dim(`Analyses: ${jobState.spikes.length}`));
           console.log();
         }
 
@@ -82,7 +82,7 @@ export function registerResumeCommand(program: Command): void {
                 if (content) {
                   console.log(content);
                 }
-                console.log(chalk.green("✔ Spike complete: " + spike.promptId));
+                console.log(chalk.green("✔ Analysis complete: " + spike.promptId));
               }
             } catch (error) {
               console.error(chalk.red(`Failed to fetch ${spike.promptId}: ${(error as Error).message}`));
@@ -108,12 +108,12 @@ export function registerResumeCommand(program: Command): void {
               await saveJobState(jobState);
 
               if (!options.json) {
-                console.log(chalk.green("✔ Spike complete: " + spike.promptId));
+                console.log(chalk.green("✔ Analysis complete: " + spike.promptId));
               } else {
                 results.push({ spikeId: spike.spikeId, promptId: spike.promptId, content: result.content });
               }
             } catch (error) {
-              console.error(chalk.red(`Stream failed for ${spike.promptId}: ${(error as Error).message}`));
+              console.error(chalk.red(`Analysis stream failed for ${spike.promptId}: ${(error as Error).message}`));
               spike.status = "error";
               await saveJobState(jobState);
             }
@@ -122,7 +122,7 @@ export function registerResumeCommand(program: Command): void {
 
           // Pending spike — kick it off and stream
           if (spike.status === "pending" || spike.status === "error") {
-            const spinner = startSpinner(`Starting spike: ${spike.promptId}...`);
+            const spinner = startSpinner(`Starting analysis: ${spike.promptId}...`);
 
             try {
               const spikeResponse = (await apiFetch(`/spikes/${id}`, {
@@ -140,7 +140,7 @@ export function registerResumeCommand(program: Command): void {
                 (spikeResponse.content as string) ??
                 (spikeResponse.markdown as string);
               if (cachedContent) {
-                spinner.succeed(`Spike ready: ${spike.promptId}`);
+                spinner.succeed(`Analysis ready: ${spike.promptId}`);
                 if (!options.json) {
                   console.log(chalk.bold.cyan(`\n─── ${spike.promptId} ───`));
                   console.log(cachedContent);
@@ -153,7 +153,7 @@ export function registerResumeCommand(program: Command): void {
                 continue;
               }
 
-              spinner.succeed(`Spike started: ${spike.promptId}`);
+              spinner.succeed(`Analysis started: ${spike.promptId}`);
               spike.status = "streaming";
               await saveJobState(jobState);
 
@@ -167,7 +167,7 @@ export function registerResumeCommand(program: Command): void {
               await saveJobState(jobState);
 
               if (!options.json) {
-                console.log(chalk.green("✔ Spike complete: " + spike.promptId));
+                console.log(chalk.green("✔ Analysis complete: " + spike.promptId));
               } else {
                 results.push({ spikeId, promptId: spike.promptId, content: result.content });
               }
@@ -182,7 +182,7 @@ export function registerResumeCommand(program: Command): void {
         if (options.json) {
           printJson({ transcriptionId: id, spikes: results });
         } else {
-          console.log(chalk.green("\n✔ All spikes resumed."));
+          console.log(chalk.green("\n✔ All analyses resumed."));
         }
       } catch (error) {
         console.error(chalk.red((error as Error).message));
