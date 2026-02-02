@@ -25,10 +25,11 @@ async function buildRequestUrl(path: string, query?: Record<string, QueryValue>,
 }
 
 function applyAuthHeaders(headers: HeadersInit, token?: string): HeadersInit {
-  if (!token) return headers;
+  const normalizedToken = token?.trim();
+  if (!normalizedToken) return headers;
   const next = new Headers(headers);
-  next.set("Authorization", `Bearer ${token}`);
-  next.set("Cookie", `xevol_session=${token}`);
+  next.set("Authorization", `Bearer ${normalizedToken}`);
+  next.set("Cookie", `xevol_session=${normalizedToken}`);
   return next;
 }
 

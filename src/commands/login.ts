@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
 import { clearConfig, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
-import { printJson } from "../lib/output";
+import { printJson, startSpinner } from "../lib/output";
 
 function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
   if (options.token) return options.token;
@@ -15,6 +15,16 @@ function pickSessionField(data: Record<string, unknown>, key: string): string | 
   if (typeof direct === "string") return direct;
   const nested = (data.session as Record<string, unknown> | undefined)?.[key];
   if (typeof nested === "string") return nested;
+  return undefined;
+}
+
+function pickNumberField(data: Record<string, unknown>, key: string): number | undefined {
+  const direct = data[key];
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
+  if (typeof direct === "string") {
+    const parsed = Number(direct);
+    if (Number.isFinite(parsed)) return parsed;
+  }
   return undefined;
 }
 
@@ -38,51 +48,194 @@ function formatWhoami(data: Record<string, unknown>): string {
   return email;
 }
 
+function formatExpiry(expiresInSeconds: number): string {
+  if (!Number.isFinite(expiresInSeconds) || expiresInSeconds <= 0) return "soon";
+  if (expiresInSeconds < 90) return `${Math.ceil(expiresInSeconds)} sec`;
+  const minutes = Math.ceil(expiresInSeconds / 60);
+  return `${minutes} min`;
+}
+
+async function openBrowser(url: string): Promise<void> {
+  try {
+    const { exec } = await import("child_process");
+    exec(`open ${url} || xdg-open ${url}`);
+  } catch {
+    // Best-effort; user still has the printed URL.
+  }
+}
+
+async function readErrorMessage(response: Response): Promise<string | null> {
+  const contentType = response.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("application/json")) {
+      const data = (await response.json()) as { message?: string; error?: string };
+      return data.message ?? data.error ?? JSON.stringify(data);
+    }
+    const text = await response.text();
+    return text.trim() ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+async function sleep(durationMs: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
 export function registerAuthCommands(program: Command): void {
   program
     .command("login")
-    .description("Authenticate with a CLI token")
+    .description("Authenticate with the browser-based device flow")
     .option("--token <token>", "CLI token (overrides XEVOL_TOKEN)")
     .option("--json", "Raw JSON output")
     .action(async (options, command) => {
       try {
         const config = (await readConfig()) ?? {};
         const tokenOverride = getTokenOverride(options, command);
-        const token = resolveToken(config, tokenOverride);
-
-        if (!token) {
-          console.error(
-            "Token required. Device auth flow is not available yet. Use --token <token> or set XEVOL_TOKEN.",
-          );
-          process.exitCode = 1;
-          return;
-        }
-
         const apiUrl = resolveApiUrl(config);
-        const session = (await apiFetch("/auth/session", {
-          token,
-          apiUrl,
-        })) as Record<string, unknown>;
 
-        const accountId = pickSessionField(session, "accountId");
-        const email = pickSessionField(session, "email");
-        const expiresAt = pickSessionField(session, "expiresAt");
+        if (tokenOverride) {
+          const token = resolveToken(config, tokenOverride);
+          if (!token) {
+            console.error("Token required. Use --token <token> or set XEVOL_TOKEN.");
+            process.exitCode = 1;
+            return;
+          }
 
-        await updateConfig({
-          apiUrl,
-          token,
-          accountId: accountId ?? config.accountId,
-          email: email ?? config.email,
-          expiresAt: expiresAt ?? config.expiresAt,
-        });
+          const session = (await apiFetch("/auth/session", {
+            token,
+            apiUrl,
+          })) as Record<string, unknown>;
 
-        if (options.json) {
-          printJson(session);
+          const accountId = pickSessionField(session, "accountId");
+          const email = pickSessionField(session, "email");
+          const expiresAt = pickSessionField(session, "expiresAt");
+
+          await updateConfig({
+            apiUrl,
+            token,
+            accountId: accountId ?? config.accountId,
+            email: email ?? config.email,
+            expiresAt: expiresAt ?? config.expiresAt,
+          });
+
+          if (options.json) {
+            printJson(session);
+            return;
+          }
+
+          const label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
+          console.log(`${chalk.green("✓")} ${label}`);
           return;
         }
 
-        const label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
-        console.log(`${chalk.green("✓")} ${label}`);
+        const deviceCodeUrl = new URL("/auth/cli/device-code", apiUrl);
+        const deviceResponse = await fetch(deviceCodeUrl, { method: "POST" });
+        if (!deviceResponse.ok) {
+          const details = await readErrorMessage(deviceResponse);
+          const message = details
+            ? `API ${deviceResponse.status}: ${details}`
+            : `API ${deviceResponse.status} ${deviceResponse.statusText}`;
+          throw new Error(message);
+        }
+
+        const deviceData = (await deviceResponse.json()) as Record<string, unknown>;
+        const deviceCode = pickSessionField(deviceData, "deviceCode");
+        const userCode = pickSessionField(deviceData, "userCode");
+        const verificationUrl = pickSessionField(deviceData, "verificationUrl");
+        const expiresIn = pickNumberField(deviceData, "expiresIn");
+        const interval = pickNumberField(deviceData, "interval");
+
+        if (!deviceCode || !userCode || !verificationUrl || !expiresIn || !interval) {
+          throw new Error("Invalid device authorization response.");
+        }
+
+        const verificationLink = new URL(verificationUrl);
+        verificationLink.searchParams.set("code", userCode);
+
+        await openBrowser(verificationLink.toString());
+
+        console.log("Open this URL to authenticate:");
+        console.log(`  ${verificationLink.toString()}`);
+        console.log("");
+        console.log(`Waiting for approval... (expires in ${formatExpiry(expiresIn)})`);
+
+        const spinner = startSpinner("Waiting for approval...");
+        const expiresAt = Date.now() + expiresIn * 1000;
+        const intervalMs = Math.max(1, interval) * 1000;
+        const deviceTokenUrl = new URL("/auth/cli/device-token", apiUrl);
+
+        try {
+          while (Date.now() < expiresAt) {
+            const pollResponse = await fetch(deviceTokenUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ deviceCode }),
+            });
+
+            if (pollResponse.status === 202) {
+              await sleep(intervalMs);
+              continue;
+            }
+
+            if (pollResponse.status === 400) {
+              const details = await readErrorMessage(pollResponse);
+              spinner.fail("Device authorization expired.");
+              console.error(details ?? "Device authorization expired. Run xevol login again.");
+              process.exitCode = 1;
+              return;
+            }
+
+            if (pollResponse.ok) {
+              const tokenData = (await pollResponse.json()) as Record<string, unknown>;
+              const token = pickSessionField(tokenData, "token");
+              const accountId = pickSessionField(tokenData, "accountId");
+              const email = pickSessionField(tokenData, "email");
+              const tokenExpiresAt = pickSessionField(tokenData, "expiresAt");
+
+              if (!token) {
+                spinner.fail("Authentication failed.");
+                throw new Error("No token received from device authorization.");
+              }
+
+              await updateConfig({
+                apiUrl,
+                token,
+                accountId: accountId ?? config.accountId,
+                email: email ?? config.email,
+                expiresAt: tokenExpiresAt ?? config.expiresAt,
+              });
+
+              spinner.succeed("Approved");
+
+              if (options.json) {
+                printJson(tokenData);
+                return;
+              }
+
+              const label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
+              console.log(`${chalk.green("✓")} ${label}`);
+              return;
+            }
+
+            const details = await readErrorMessage(pollResponse);
+            spinner.fail("Authentication failed.");
+            const message = details
+              ? `API ${pollResponse.status}: ${details}`
+              : `API ${pollResponse.status} ${pollResponse.statusText}`;
+            throw new Error(message);
+          }
+
+          const timeoutMessage = "Device authorization timed out. Run xevol login again.";
+          spinner.fail("Timed out.");
+          console.error(timeoutMessage);
+          process.exitCode = 1;
+        } catch (error) {
+          if (spinner.isSpinning) {
+            spinner.fail("Authentication failed.");
+          }
+          throw error;
+        }
       } catch (error) {
         console.error((error as Error).message);
         process.exitCode = 1;
@@ -97,7 +250,8 @@ export function registerAuthCommands(program: Command): void {
       try {
         const config = (await readConfig()) ?? {};
         const tokenOverride = getTokenOverride(options, command);
-        const token = resolveToken(config, tokenOverride);
+        const storedToken = config.token;
+        const token = storedToken ?? resolveToken(config, tokenOverride);
 
         if (!token) {
           console.log("You are not logged in.");
@@ -138,7 +292,7 @@ export function registerAuthCommands(program: Command): void {
         const token = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error("Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+          console.error("Not logged in. Use xevol login to authenticate.");
           process.exitCode = 1;
           return;
         }
