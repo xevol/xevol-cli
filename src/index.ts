@@ -6,6 +6,7 @@ import { registerAuthCommands } from "./commands/login";
 import { registerListCommand } from "./commands/list";
 import { registerSpikesCommand } from "./commands/spikes";
 import { registerViewCommand } from "./commands/view";
+import { registerPromptsCommand } from "./commands/prompts";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -23,5 +24,6 @@ registerListCommand(program);
 registerAddCommand(program);
 registerViewCommand(program);
 registerSpikesCommand(program);
+registerPromptsCommand(program);
 
 await program.parseAsync(process.argv);

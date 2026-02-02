@@ -9,6 +9,7 @@ interface AddOptions {
   lang?: string;
   wait?: boolean;
   json?: boolean;
+  spikes?: string;
 }
 
 async function waitForCompletion(id: string, token: string, apiUrl: string) {
@@ -61,6 +62,7 @@ export function registerAddCommand(program: Command): void {
     .argument("<youtubeUrl>", "YouTube URL")
     .option("--lang <code>", "Output language", "en")
     .option("--wait", "Wait for completion")
+    .option("--spikes <prompts>", "Comma-separated prompt IDs to generate spikes after transcription (requires --wait)")
     .option("--json", "Raw JSON output")
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
@@ -101,8 +103,72 @@ export function registerAddCommand(program: Command): void {
 
         if (options.wait) {
           const finalResponse = await waitForCompletion(id, token, apiUrl);
-          if (options.json) {
+          if (options.json && !options.spikes) {
             printJson(finalResponse ?? response);
+          }
+
+          // Generate spikes if requested
+          if (options.spikes && finalResponse) {
+            const status = extractStatus(finalResponse)?.toLowerCase() ?? "";
+            if (!status.includes("complete")) {
+              console.error("Transcription did not complete — skipping spike generation.");
+            } else {
+              const promptIds = options.spikes.split(",").map((s) => s.trim()).filter(Boolean);
+              const lang = options.lang ?? "en";
+              const spikeResults: Record<string, unknown>[] = [];
+
+              for (const promptId of promptIds) {
+                const spinner = startSpinner(`Generating spike: ${promptId}...`);
+                const started = Date.now();
+                const maxAttempts = 120;
+
+                try {
+                  // POST to create/fetch spike
+                  let spikeResponse = (await apiFetch(`/spikes/${id}`, {
+                    method: "POST",
+                    body: { promptId, outputLang: lang },
+                    token,
+                    apiUrl,
+                  })) as Record<string, unknown>;
+
+                  // Poll if spike is being generated
+                  const spikes = (spikeResponse.spikes as unknown[] | undefined) ??
+                    (spikeResponse.data as unknown[] | undefined) ??
+                    (spikeResponse.items as unknown[] | undefined);
+
+                  if ((!spikes || (Array.isArray(spikes) && spikes.length === 0)) && spikeResponse.spikeId) {
+                    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                      await new Promise((resolve) => setTimeout(resolve, 5000));
+                      const elapsedSeconds = Math.floor((Date.now() - started) / 1000);
+                      spinner.text = `Generating spike: ${promptId}... (${elapsedSeconds}s)`;
+
+                      spikeResponse = (await apiFetch(`/spikes/${id}`, {
+                        method: "POST",
+                        body: { promptId, outputLang: lang },
+                        token,
+                        apiUrl,
+                      })) as Record<string, unknown>;
+
+                      const content = spikeResponse.content ?? spikeResponse.markdown ?? spikeResponse.text;
+                      const innerSpikes = (spikeResponse.spikes as unknown[] | undefined) ??
+                        (spikeResponse.data as unknown[] | undefined);
+                      if (content || (Array.isArray(innerSpikes) && innerSpikes.length > 0)) {
+                        break;
+                      }
+                    }
+                  }
+
+                  spinner.succeed(`Spike ready: ${promptId}`);
+                  spikeResults.push(spikeResponse);
+                } catch (error) {
+                  spinner.fail(`Spike failed: ${promptId} — ${(error as Error).message}`);
+                }
+              }
+
+              if (options.json) {
+                printJson({ transcription: finalResponse, spikes: spikeResults });
+              }
+            }
           }
           return;
         }
