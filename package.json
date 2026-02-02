@@ -1,14 +1,14 @@
 {
   "name": "xevol",
-  "version": "0.0.1",
-  "description": "CLI for XEVol — transcribe, analyze, and explore YouTube content",
+  "version": "0.1.0",
+  "description": "CLI for XEVol — transcribe, analyze, and explore YouTube content from your terminal",
   "type": "module",
   "bin": {
-    "xevol": "./src/index.ts"
+    "xevol": "./dist/index.js"
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node",
+    "build": "bun build src/index.ts --outdir dist --target node --minify",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
@@ -18,7 +18,8 @@
     "commander": "^13.0.0",
     "ora": "^8.0.0"
   },
-  "keywords": ["xevol", "transcription", "youtube", "cli"],
+  "keywords": ["xevol", "transcription", "transcribe", "youtube", "analysis", "cli"],
+  "files": ["dist", "README.md", "package.json"],
   "author": "Kuan <kuka@xevol.com>",
   "license": "UNLICENSED",
   "private": false,
