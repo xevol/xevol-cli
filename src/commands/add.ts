@@ -4,12 +4,15 @@ import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { formatDuration, printJson, startSpinner } from "../lib/output";
 import { extractId, extractStatus, pickValue } from "../lib/utils";
+import { saveJobState, updateSpikeState, type JobState, type SpikeState } from "../lib/jobs";
+import { streamSpikeToTerminal } from "./stream";
 
 interface AddOptions {
   lang?: string;
   wait?: boolean;
   json?: boolean;
   spikes?: string;
+  stream?: boolean;
 }
 
 async function waitForCompletion(id: string, token: string, apiUrl: string) {
@@ -63,6 +66,7 @@ export function registerAddCommand(program: Command): void {
     .option("--lang <code>", "Output language", "en")
     .option("--wait", "Wait for completion")
     .option("--spikes <prompts>", "Comma-separated prompt IDs to generate spikes after transcription (requires --wait)")
+    .option("--stream", "Stream spike content in real-time via SSE (use with --wait --spikes)")
     .option("--json", "Raw JSON output")
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
@@ -112,7 +116,101 @@ export function registerAddCommand(program: Command): void {
             const status = extractStatus(finalResponse)?.toLowerCase() ?? "";
             if (!status.includes("complete")) {
               console.error("Transcription did not complete — skipping spike generation.");
+            } else if (options.stream) {
+              // === STREAMING MODE ===
+              const promptIds = options.spikes.split(",").map((s) => s.trim()).filter(Boolean);
+              const lang = options.lang ?? "en";
+              const spikeResults: Record<string, unknown>[] = [];
+
+              // Initialize job state for resume
+              const jobState: JobState = {
+                transcriptionId: id,
+                url: youtubeUrl,
+                spikes: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+
+              for (const promptId of promptIds) {
+                const spinner = startSpinner(`Creating spike: ${promptId}...`);
+
+                try {
+                  // Create spike via POST
+                  const spikeResponse = (await apiFetch(`/spikes/${id}`, {
+                    method: "POST",
+                    body: { promptId, outputLang: lang },
+                    token,
+                    apiUrl,
+                  })) as Record<string, unknown>;
+
+                  const spikeId = spikeResponse.spikeId as string;
+
+                  // Track in job state
+                  const spikeState: SpikeState = {
+                    spikeId: spikeId ?? promptId,
+                    promptId,
+                    status: "pending",
+                  };
+                  jobState.spikes.push(spikeState);
+
+                  // If content already cached, print and skip streaming
+                  const cachedContent =
+                    (spikeResponse.content as string) ??
+                    (spikeResponse.markdown as string);
+                  if (cachedContent) {
+                    spinner.succeed(`Spike ready: ${promptId} (cached)`);
+                    if (!options.json) {
+                      console.log(chalk.bold.cyan(`\n─── ${promptId} ───`));
+                      console.log(cachedContent);
+                    }
+                    spikeState.status = "complete";
+                    await saveJobState(jobState);
+                    spikeResults.push(spikeResponse);
+                    continue;
+                  }
+
+                  if (!spikeId) {
+                    spinner.fail(`No spikeId returned for ${promptId}`);
+                    spikeState.status = "error";
+                    await saveJobState(jobState);
+                    continue;
+                  }
+
+                  spinner.succeed(`Spike created: ${promptId}`);
+                  spikeState.status = "streaming";
+                  await saveJobState(jobState);
+
+                  // Stream content via SSE
+                  const result = await streamSpikeToTerminal(spikeId, token, apiUrl, {
+                    json: options.json,
+                    header: promptId,
+                  });
+
+                  spikeState.status = "complete";
+                  spikeState.lastEventId = result.lastEventId;
+                  await saveJobState(jobState);
+
+                  if (!options.json) {
+                    console.log(chalk.green(`✔ Spike complete: ${promptId}`));
+                  }
+                  spikeResults.push({ spikeId, promptId, content: result.content });
+                } catch (error) {
+                  spinner.fail(`Spike failed: ${promptId} — ${(error as Error).message}`);
+                  const existingSpike = jobState.spikes.find((s) => s.promptId === promptId);
+                  if (existingSpike) {
+                    existingSpike.status = "error";
+                    await saveJobState(jobState);
+                  }
+                }
+              }
+
+              if (!options.json) {
+                console.log(chalk.green(`\n✔ All done. Resume anytime: xevol resume ${id}`));
+              } else {
+                printJson({ transcription: finalResponse, spikes: spikeResults });
+              }
             } else {
+              // === POLLING MODE (existing behavior) ===
               const promptIds = options.spikes.split(",").map((s) => s.trim()).filter(Boolean);
               const lang = options.lang ?? "en";
               const spikeResults: Record<string, unknown>[] = [];

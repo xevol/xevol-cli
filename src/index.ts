@@ -7,6 +7,8 @@ import { registerListCommand } from "./commands/list";
 import { registerSpikesCommand } from "./commands/spikes";
 import { registerViewCommand } from "./commands/view";
 import { registerPromptsCommand } from "./commands/prompts";
+import { registerStreamCommand } from "./commands/stream";
+import { registerResumeCommand } from "./commands/resume";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -25,5 +27,7 @@ registerAddCommand(program);
 registerViewCommand(program);
 registerSpikesCommand(program);
 registerPromptsCommand(program);
+registerStreamCommand(program);
+registerResumeCommand(program);
 
 await program.parseAsync(process.argv);
