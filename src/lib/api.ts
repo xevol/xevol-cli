@@ -7,10 +7,16 @@ export interface ApiRequestOptions {
   query?: Record<string, QueryValue>;
   body?: unknown;
   headers?: HeadersInit;
+  /** CLI token to send as Authorization: Bearer header */
   token?: string;
+  /** Override the base API URL (defaults to config or XEVOL_API_URL) */
   apiUrl?: string;
 }
 
+/**
+ * Build the full request URL from a path, optional query params, and base URL.
+ * Null/undefined query values are silently skipped.
+ */
 function buildRequestUrl(path: string, query?: Record<string, QueryValue>, apiUrl?: string): URL {
   const baseUrl = apiUrl ?? resolveApiUrl();
   const url = new URL(path, baseUrl);
@@ -23,14 +29,27 @@ function buildRequestUrl(path: string, query?: Record<string, QueryValue>, apiUr
   return url;
 }
 
+/**
+ * Attach the CLI token as a Bearer token in the Authorization header.
+ *
+ * This is how the CLI authenticates with the API — every request includes
+ * "Authorization: Bearer xevol_cli_..." which the API middleware (tryAttachUser
+ * or requireCliToken) validates against the cliTokens database table.
+ *
+ * The token is trimmed to handle accidental whitespace from config files or
+ * environment variables.
+ */
 function applyAuthHeaders(headers: HeadersInit, token?: string): HeadersInit {
   const normalizedToken = token?.trim();
   if (!normalizedToken) return headers;
   const next = new Headers(headers);
+  // Standard OAuth 2.0 Bearer token format — the API's getBearerToken()
+  // helper splits on space and checks for "bearer" scheme
   next.set("Authorization", `Bearer ${normalizedToken}`);
   return next;
 }
 
+/** Try to extract a human-readable error from an API error response body. */
 async function parseErrorBody(response: Response): Promise<string | null> {
   const contentType = response.headers.get("content-type") ?? "";
   try {
@@ -44,29 +63,51 @@ async function parseErrorBody(response: Response): Promise<string | null> {
   }
 }
 
+/**
+ * Core API fetch wrapper used by all CLI commands.
+ *
+ * Handles:
+ *   - Base URL resolution (from config, env, or explicit apiUrl)
+ *   - Bearer token authentication (from stored CLI token)
+ *   - Query parameter serialization
+ *   - JSON body serialization (auto-sets Content-Type for non-FormData bodies)
+ *   - Error response parsing (extracts message from JSON or text error bodies)
+ *   - Method inference (GET if no body, POST if body provided)
+ *
+ * Throws on non-2xx responses with a descriptive error message.
+ */
 export async function apiFetch<T = unknown>(
   path: string,
   { method, query, body, headers, token, apiUrl }: ApiRequestOptions = {},
 ): Promise<T> {
   const url = buildRequestUrl(path, query, apiUrl);
+
+  // Apply Bearer token auth — this is the primary way CLI authenticates.
+  // The token comes from the local config file (written by `xevol login`).
   const requestHeaders = applyAuthHeaders(headers ?? {}, token);
 
+  // Auto-set Content-Type for JSON bodies. FormData handles its own
+  // Content-Type (with boundary) so we don't touch it.
   if (body !== undefined && !(body instanceof FormData)) {
     (requestHeaders as Headers).set("Content-Type", "application/json");
   }
 
   const response = await fetch(url, {
+    // Smart method default: GET for reads (no body), POST for writes (has body)
     method: method ?? (body === undefined ? "GET" : "POST"),
     headers: requestHeaders,
     body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
   });
 
   if (!response.ok) {
+    // Parse the error body to give the user a useful error message
+    // instead of just "API 401"
     const details = await parseErrorBody(response);
     const message = details ? `API ${response.status}: ${details}` : `API ${response.status} ${response.statusText}`;
     throw new Error(message);
   }
 
+  // Parse response based on Content-Type — JSON if available, text otherwise
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     return (await response.json()) as T;
