@@ -59,16 +59,15 @@ export function resolveApiUrl(config?: XevolConfig): string {
   return process.env.XEVOL_API_URL ?? config?.apiUrl ?? DEFAULT_API_URL;
 }
 
-export function resolveToken(config?: XevolConfig, tokenOverride?: string): string | undefined {
+export function resolveToken(config?: XevolConfig, tokenOverride?: string): { token: string | undefined; expired: boolean } {
   const token = tokenOverride ?? process.env.XEVOL_TOKEN ?? config?.token;
   if (token && !tokenOverride && !process.env.XEVOL_TOKEN && config?.expiresAt) {
     const expiresAt = new Date(config.expiresAt).getTime();
     if (Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
-      console.error("Token expired. Run `xevol login` to re-authenticate.");
-      return undefined;
+      return { token: undefined, expired: true };
     }
   }
-  return token;
+  return { token, expired: false };
 }
 
 export function getTokenOverride(options: { token?: string }, command: Command): string | undefined {

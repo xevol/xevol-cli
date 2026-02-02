@@ -85,10 +85,10 @@ export function registerSpikesCommand(program: Command): void {
       try {
         const config = (await readConfig()) ?? {};
         const tokenOverride = getTokenOverride(options as { token?: string }, command);
-        const token = resolveToken(config, tokenOverride);
+        const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error("Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
           process.exitCode = 1;
           return;
         }

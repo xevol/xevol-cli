@@ -75,9 +75,9 @@ export function registerAuthCommands(program: Command): void {
         const apiUrl = resolveApiUrl(config);
 
         if (tokenOverride) {
-          const token = resolveToken(config, tokenOverride);
+          const { token, expired } = resolveToken(config, tokenOverride);
           if (!token) {
-            console.error("Token required. Use --token <token> or set XEVOL_TOKEN.");
+            console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Token required. Use --token <token> or set XEVOL_TOKEN.");
             process.exitCode = 1;
             return;
           }
@@ -231,10 +231,11 @@ export function registerAuthCommands(program: Command): void {
         const config = (await readConfig()) ?? {};
         const tokenOverride = getTokenOverride(options, command);
         const storedToken = config.token;
-        const token = storedToken ?? resolveToken(config, tokenOverride);
+        const { token: resolvedToken, expired } = resolveToken(config, tokenOverride);
+        const token = storedToken ?? resolvedToken;
 
         if (!token) {
-          console.log("You are not logged in.");
+          console.log(expired ? "Token expired. Run `xevol login` to re-authenticate." : "You are not logged in.");
           return;
         }
 
@@ -269,10 +270,10 @@ export function registerAuthCommands(program: Command): void {
       try {
         const config = (await readConfig()) ?? {};
         const tokenOverride = getTokenOverride(options, command);
-        const token = resolveToken(config, tokenOverride);
+        const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error("Not logged in. Use xevol login to authenticate.");
+          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login to authenticate.");
           process.exitCode = 1;
           return;
         }
