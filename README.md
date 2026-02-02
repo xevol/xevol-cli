@@ -20,4 +20,4 @@ xevol spikes <id>    # View AI-generated insights
 
 ## License
 
-MIT
+Proprietary © XEVol
