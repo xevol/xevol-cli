@@ -11,7 +11,7 @@ Paste a YouTube URL, get AI-powered transcription and analysis — no API keys, 
 ## Quick Demo
 
 ```bash
-$ xevol add https://youtube.com/watch?v=oOylEw3tPQ8 --wait --analyze facts
+$ xevol add https://youtube.com/watch?v=oOylEw3tPQ8 --analyze facts
 
 ⠋ Processing... (12s)
 ✔ "Cursor CEO: Going Beyond Code" (37:29)
@@ -45,8 +45,8 @@ Requires Node.js 18+.
 # 1. Authenticate
 xevol login
 
-# 2. Add a YouTube video
-xevol add "https://youtube.com/watch?v=abc123" --wait
+# 2. Add a YouTube video (waits for completion by default)
+xevol add "https://youtube.com/watch?v=abc123"
 
 # 3. Analyze it
 xevol analyze <id> --prompt facts
@@ -95,29 +95,28 @@ export XEVOL_TOKEN=<token>
 Add a YouTube video for transcription.
 
 ```bash
-# Submit and return immediately
+# Add and wait for transcription (default)
 xevol add "https://youtube.com/watch?v=abc123"
 
-# Wait for transcription to complete
-xevol add "https://youtube.com/watch?v=abc123" --wait
+# Fire-and-forget (returns ID immediately)
+xevol add "https://youtube.com/watch?v=abc123" --no-wait
 
 # Specify language
-xevol add "https://youtube.com/watch?v=abc123" --lang de --wait
+xevol add "https://youtube.com/watch?v=abc123" --lang de
 
 # Transcribe and analyze in one step
-xevol add "https://youtube.com/watch?v=abc123" --wait --analyze facts
+xevol add "https://youtube.com/watch?v=abc123" --analyze facts
 
 # Analyze with multiple prompts
-xevol add "https://youtube.com/watch?v=abc123" --wait --analyze facts,advice
+xevol add "https://youtube.com/watch?v=abc123" --analyze facts,advice
 
 # Stream analysis output in real time
-xevol add "https://youtube.com/watch?v=abc123" --wait --analyze facts --stream
+xevol add "https://youtube.com/watch?v=abc123" --analyze facts --stream
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--wait` | Wait for transcription to finish |
-| `--no-wait` | Return immediately (default) |
+| `--no-wait` | Return immediately without waiting |
 | `--lang <code>` | Language code (e.g. `en`, `de`, `ja`) |
 | `--analyze <prompts>` | Comma-separated prompt IDs to run after transcription |
 | `--stream` | Stream analysis output via SSE |
@@ -281,7 +280,7 @@ xevol prompts --csv
 Analysis output streams in real time via Server-Sent Events (SSE). Use `--stream` with `add` to watch analysis as it's generated:
 
 ```bash
-xevol add "https://youtube.com/watch?v=..." --wait --analyze facts --stream
+xevol add "https://youtube.com/watch?v=..." --analyze facts --stream
 ```
 
 If a stream is interrupted, resume it:
