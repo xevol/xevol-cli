@@ -19,8 +19,10 @@ export function pickValueOrDash(record: Record<string, unknown>, keys: string[])
 export function pickSessionField(data: Record<string, unknown>, key: string): string | undefined {
   const direct = data[key];
   if (typeof direct === "string") return direct;
-  const nested = (data.session as Record<string, unknown> | undefined)?.[key];
-  if (typeof nested === "string") return nested;
+  const fromUser = (data.user as Record<string, unknown> | undefined)?.[key];
+  if (typeof fromUser === "string") return fromUser;
+  const fromSession = (data.session as Record<string, unknown> | undefined)?.[key];
+  if (typeof fromSession === "string") return fromSession;
   return undefined;
 }
 
