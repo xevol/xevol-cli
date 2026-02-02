@@ -35,22 +35,25 @@ function extractSpikeText(spike: Record<string, unknown>): string | undefined {
   return value;
 }
 
-async function fetchSpikes(transcriptionId: string, token: string, apiUrl: string) {
-  return (await apiFetch("/spikes", {
-    query: { transcriptionId },
+async function fetchSpikes(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
+  // POST /spikes/:id both creates new spikes AND returns existing ones (idempotent).
+  // If a spike with the same promptId+outputLang already exists, the API returns it directly.
+  return (await apiFetch(`/spikes/${transcriptionId}`, {
+    method: "POST",
+    body: { promptId, outputLang },
     token,
     apiUrl,
   })) as Record<string, unknown>;
 }
 
-async function waitForSpikes(transcriptionId: string, token: string, apiUrl: string) {
+async function waitForSpikes(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
   const spinner = startSpinner("Generating spikes...");
   const started = Date.now();
   const maxAttempts = 120;
 
   try {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const response = await fetchSpikes(transcriptionId, token, apiUrl);
+      const response = await fetchSpikes(transcriptionId, token, apiUrl, promptId, outputLang);
       const spikes = extractSpikes(response);
 
       const elapsedSeconds = Math.floor((Date.now() - started) / 1000);
@@ -94,34 +97,16 @@ export function registerSpikesCommand(program: Command): void {
         }
 
         const apiUrl = resolveApiUrl(config);
-        let response = await fetchSpikes(id, token, apiUrl);
+        const promptId = options.prompt ?? "review";
+        const lang = options.lang ?? "en";
+
+        // POST is idempotent — returns existing spike or creates + queues a new one
+        let response = await fetchSpikes(id, token, apiUrl, promptId, lang);
         let spikes = extractSpikes(response);
 
-        if (spikes.length === 0) {
-          if (!options.generate) {
-            if (options.json) {
-              printJson(response);
-              return;
-            }
-            console.log(`No spikes found for ${id}.`);
-            console.log("Generate with: xevol spikes " + id + " --generate --prompt <promptId>");
-            return;
-          }
-
-          if (!options.prompt) {
-            console.error("--prompt is required to generate spikes.");
-            process.exitCode = 1;
-            return;
-          }
-
-          await apiFetch(`/spikes/${id}`, {
-            method: "POST",
-            body: { promptId: options.prompt, outputLang: options.lang },
-            token,
-            apiUrl,
-          });
-
-          const finalResponse = await waitForSpikes(id, token, apiUrl);
+        // If we got a spikeId but no content, the spike is being generated — poll for it
+        if (spikes.length === 0 && (response.spikeId as string | undefined)) {
+          const finalResponse = await waitForSpikes(id, token, apiUrl, promptId, lang);
           if (!finalResponse) {
             process.exitCode = 1;
             return;

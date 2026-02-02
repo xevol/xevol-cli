@@ -13,6 +13,7 @@ interface ListOptions {
 
 function normalizeListResponse(data: Record<string, unknown>) {
   const items =
+    (data.list as Record<string, unknown>[] | undefined) ??
     (data.data as Record<string, unknown>[] | undefined) ??
     (data.transcriptions as Record<string, unknown>[] | undefined) ??
     (data.items as Record<string, unknown>[] | undefined) ??
@@ -64,7 +65,7 @@ export function registerListCommand(program: Command): void {
         }
 
         const apiUrl = resolveApiUrl(config);
-        const response = (await apiFetch("/v1/transcription/transcriptions", {
+        const response = (await apiFetch("/v1/transcriptions", {
           query: { page: options.page, limit: options.limit },
           token,
           apiUrl,

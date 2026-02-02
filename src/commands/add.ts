@@ -18,7 +18,7 @@ async function waitForCompletion(id: string, token: string, apiUrl: string) {
 
   try {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const response = (await apiFetch(`/v1/transcription/status/${id}`, {
+      const response = (await apiFetch(`/v1/status/${id}`, {
         token,
         apiUrl,
       })) as Record<string, unknown>;
@@ -75,9 +75,8 @@ export function registerAddCommand(program: Command): void {
         }
 
         const apiUrl = resolveApiUrl(config);
-        const response = (await apiFetch("/v1/transcription/add", {
-          method: "POST",
-          body: { url: youtubeUrl, outputLang: options.lang },
+        const response = (await apiFetch("/v1/add", {
+          query: { url: youtubeUrl, outputLang: options.lang },
           token,
           apiUrl,
         })) as Record<string, unknown>;

@@ -48,7 +48,7 @@ export function registerViewCommand(program: Command): void {
         }
 
         const apiUrl = resolveApiUrl(config);
-        const response = (await apiFetch(`/v1/transcription/analysis/${id}`, {
+        const response = (await apiFetch(`/v1/analysis/${id}`, {
           token,
           apiUrl,
         })) as Record<string, unknown>;
