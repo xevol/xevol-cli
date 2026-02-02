@@ -1,7 +1,7 @@
 {
   "name": "xevol",
   "version": "0.1.0",
-  "description": "CLI for XEVol — transcribe, analyze, and explore YouTube content from your terminal",
+  "description": "Transcribe, analyze, and explore YouTube content from your terminal",
   "type": "module",
   "bin": {
     "xevol": "./dist/index.js"
@@ -18,7 +18,7 @@
     "commander": "^13.0.0",
     "ora": "^8.0.0"
   },
-  "keywords": ["xevol", "transcription", "transcribe", "youtube", "analysis", "cli"],
+  "keywords": ["xevol", "transcription", "transcribe", "youtube", "analysis", "cli", "ai", "video", "subtitles", "intelligence"],
   "files": ["dist", "README.md", "package.json"],
   "author": "Kuan <kuka@xevol.com>",
   "license": "UNLICENSED",
