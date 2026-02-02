@@ -54,17 +54,3 @@ export async function loadJobState(transcriptionId: string): Promise<JobState | 
   }
 }
 
-export async function updateSpikeState(
-  transcriptionId: string,
-  spikeId: string,
-  update: Partial<SpikeState>,
-): Promise<void> {
-  const state = await loadJobState(transcriptionId);
-  if (!state) return;
-
-  const spike = state.spikes.find((s) => s.spikeId === spikeId);
-  if (spike) {
-    Object.assign(spike, update);
-    await saveJobState(state);
-  }
-}

@@ -4,7 +4,7 @@ import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { formatDuration, printJson, startSpinner } from "../lib/output";
 import { extractId, extractStatus, pickValue } from "../lib/utils";
-import { saveJobState, updateSpikeState, type JobState, type SpikeState } from "../lib/jobs";
+import { saveJobState, type JobState, type SpikeState } from "../lib/jobs";
 import { streamSpikeToTerminal } from "./stream";
 
 interface AddOptions {
