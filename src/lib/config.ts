@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import type { Command } from "commander";
 
 export interface XevolConfig {
   apiUrl?: string;
@@ -34,7 +35,7 @@ export async function readConfig(): Promise<XevolConfig | null> {
 export async function writeConfig(config: XevolConfig): Promise<void> {
   await ensureConfigDir();
   const payload = JSON.stringify(config, null, 2) + "\n";
-  await fs.writeFile(CONFIG_PATH, payload, "utf8");
+  await fs.writeFile(CONFIG_PATH, payload, { encoding: "utf8", mode: 0o600 });
 }
 
 export async function updateConfig(update: Partial<XevolConfig>): Promise<XevolConfig> {
@@ -59,5 +60,19 @@ export function resolveApiUrl(config?: XevolConfig): string {
 }
 
 export function resolveToken(config?: XevolConfig, tokenOverride?: string): string | undefined {
-  return tokenOverride ?? process.env.XEVOL_TOKEN ?? config?.token;
+  const token = tokenOverride ?? process.env.XEVOL_TOKEN ?? config?.token;
+  if (token && !tokenOverride && !process.env.XEVOL_TOKEN && config?.expiresAt) {
+    const expiresAt = new Date(config.expiresAt).getTime();
+    if (Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
+      console.error("Token expired. Run `xevol login` to re-authenticate.");
+      return undefined;
+    }
+  }
+  return token;
+}
+
+export function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
+  if (options.token) return options.token;
+  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
+  return globals.token as string | undefined;
 }

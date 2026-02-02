@@ -1,27 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
-import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { divider, formatDuration, printJson } from "../lib/output";
+import { pickValue } from "../lib/utils";
 
 interface ViewOptions {
   raw?: boolean;
   clean?: boolean;
   json?: boolean;
-}
-
-function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
-  if (options.token) return options.token;
-  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
-  return globals.token as string | undefined;
-}
-
-function pickValue(record: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return undefined;
 }
 
 function getAnalysisPayload(response: Record<string, unknown>): Record<string, unknown> {

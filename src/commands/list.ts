@@ -1,19 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
-import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { formatDuration, formatStatus, printJson, renderTable } from "../lib/output";
+import { pickValueOrDash } from "../lib/utils";
 
 interface ListOptions {
   page?: number;
   limit?: number;
   json?: boolean;
-}
-
-function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
-  if (options.token) return options.token;
-  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
-  return globals.token as string | undefined;
 }
 
 function normalizeListResponse(data: Record<string, unknown>) {
@@ -47,15 +42,6 @@ function normalizeListResponse(data: Record<string, unknown>) {
     (limit ? Math.ceil(total / limit) : 1);
 
   return { items, page, limit, total, totalPages };
-}
-
-function pickValue(record: Record<string, unknown>, keys: string[]): string {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.length > 0) return value;
-    if (typeof value === "number") return String(value);
-  }
-  return "—";
 }
 
 export function registerListCommand(program: Command): void {
@@ -95,17 +81,17 @@ export function registerListCommand(program: Command): void {
         console.log("");
 
         const rows = items.map((item) => {
-          const id = pickValue(item, ["id", "transcriptionId", "_id"]);
-          const status = formatStatus(pickValue(item, ["status", "state"]));
-          const lang = pickValue(item, ["lang", "outputLang", "language"]);
+          const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
+          const status = formatStatus(pickValueOrDash(item, ["status", "state"]));
+          const lang = pickValueOrDash(item, ["lang", "outputLang", "language"]);
           const durationRaw =
             (item.duration as number | string | undefined) ??
             (item.durationSec as number | undefined) ??
             (item.durationSeconds as number | undefined) ??
             (item.lengthSec as number | undefined);
           const duration = formatDuration(durationRaw ?? "—");
-          const channel = pickValue(item, ["channel", "channelTitle", "author", "uploader"]);
-          const title = pickValue(item, ["title", "videoTitle", "name"]);
+          const channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
+          const title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
 
           return [id, status, lang, duration, channel, title];
         });

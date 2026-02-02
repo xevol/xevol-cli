@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
-import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { divider, printJson, startSpinner } from "../lib/output";
 
 interface SpikesOptions {
@@ -9,12 +9,6 @@ interface SpikesOptions {
   prompt?: string;
   lang?: string;
   json?: boolean;
-}
-
-function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
-  if (options.token) return options.token;
-  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
-  return globals.token as string | undefined;
 }
 
 function extractSpikes(response: Record<string, unknown>): Record<string, unknown>[] {

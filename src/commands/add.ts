@@ -1,39 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
-import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { formatDuration, printJson, startSpinner } from "../lib/output";
+import { extractId, extractStatus, pickValue } from "../lib/utils";
 
 interface AddOptions {
   lang?: string;
   wait?: boolean;
   json?: boolean;
-}
-
-function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
-  if (options.token) return options.token;
-  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
-  return globals.token as string | undefined;
-}
-
-function pickValue(record: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return undefined;
-}
-
-function extractId(data: Record<string, unknown>): string | undefined {
-  return (
-    pickValue(data, ["id", "transcriptionId"]) ??
-    (data.transcription as Record<string, unknown> | undefined)?.id?.toString() ??
-    (data.data as Record<string, unknown> | undefined)?.id?.toString()
-  );
-}
-
-function extractStatus(data: Record<string, unknown>): string | undefined {
-  return pickValue(data, ["status", "state"]);
 }
 
 async function waitForCompletion(id: string, token: string, apiUrl: string) {
@@ -101,7 +76,8 @@ export function registerAddCommand(program: Command): void {
 
         const apiUrl = resolveApiUrl(config);
         const response = (await apiFetch("/v1/transcription/add", {
-          query: { url: youtubeUrl, outputLang: options.lang },
+          method: "POST",
+          body: { url: youtubeUrl, outputLang: options.lang },
           token,
           apiUrl,
         })) as Record<string, unknown>;

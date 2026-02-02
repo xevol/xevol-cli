@@ -1,4 +1,4 @@
-import { readConfig, resolveApiUrl, resolveToken } from "./config";
+import { resolveApiUrl } from "./config";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -11,9 +11,8 @@ export interface ApiRequestOptions {
   apiUrl?: string;
 }
 
-async function buildRequestUrl(path: string, query?: Record<string, QueryValue>, apiUrl?: string): Promise<URL> {
-  const config = (await readConfig()) ?? {};
-  const baseUrl = apiUrl ?? resolveApiUrl(config);
+function buildRequestUrl(path: string, query?: Record<string, QueryValue>, apiUrl?: string): URL {
+  const baseUrl = apiUrl ?? resolveApiUrl();
   const url = new URL(path, baseUrl);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
@@ -29,7 +28,6 @@ function applyAuthHeaders(headers: HeadersInit, token?: string): HeadersInit {
   if (!normalizedToken) return headers;
   const next = new Headers(headers);
   next.set("Authorization", `Bearer ${normalizedToken}`);
-  next.set("Cookie", `xevol_session=${normalizedToken}`);
   return next;
 }
 
@@ -50,10 +48,8 @@ export async function apiFetch<T = unknown>(
   path: string,
   { method, query, body, headers, token, apiUrl }: ApiRequestOptions = {},
 ): Promise<T> {
-  const config = (await readConfig()) ?? {};
-  const authToken = resolveToken(config, token);
-  const url = await buildRequestUrl(path, query, apiUrl);
-  const requestHeaders = applyAuthHeaders(headers ?? {}, authToken);
+  const url = buildRequestUrl(path, query, apiUrl);
+  const requestHeaders = applyAuthHeaders(headers ?? {}, token);
 
   if (body !== undefined && !(body instanceof FormData)) {
     (requestHeaders as Headers).set("Content-Type", "application/json");

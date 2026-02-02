@@ -1,32 +1,9 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
-import { clearConfig, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
+import { clearConfig, getTokenOverride, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
 import { printJson, startSpinner } from "../lib/output";
-
-function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
-  if (options.token) return options.token;
-  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
-  return globals.token as string | undefined;
-}
-
-function pickSessionField(data: Record<string, unknown>, key: string): string | undefined {
-  const direct = data[key];
-  if (typeof direct === "string") return direct;
-  const nested = (data.session as Record<string, unknown> | undefined)?.[key];
-  if (typeof nested === "string") return nested;
-  return undefined;
-}
-
-function pickNumberField(data: Record<string, unknown>, key: string): number | undefined {
-  const direct = data[key];
-  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
-  if (typeof direct === "string") {
-    const parsed = Number(direct);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
-}
+import { pickNumberField, pickSessionField } from "../lib/utils";
 
 function formatWhoami(data: Record<string, unknown>): string {
   const email = pickSessionField(data, "email") ?? "Unknown";
@@ -57,8 +34,11 @@ function formatExpiry(expiresInSeconds: number): string {
 
 async function openBrowser(url: string): Promise<void> {
   try {
-    const { exec } = await import("child_process");
-    exec(`open ${url} || xdg-open ${url}`);
+    const { execFile } = await import("child_process");
+    const opener = process.platform === "darwin" ? "open" : "xdg-open";
+    execFile(opener, [url], (err) => {
+      // Best-effort; user still has the printed URL.
+    });
   } catch {
     // Best-effort; user still has the printed URL.
   }
