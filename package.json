@@ -11,6 +11,13 @@
     "build": "bun build src/index.ts --outdir dist --target node",
     "prepublishOnly": "bun run build"
   },
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "chalk": "^5.4.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.0.0",
+    "ora": "^8.0.0"
+  },
   "keywords": ["xevol", "transcription", "youtube", "cli"],
   "author": "Kuan <kuka@xevol.com>",
   "license": "UNLICENSED",
@@ -22,5 +29,9 @@
   "homepage": "https://xevol.com",
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
   }
 }
