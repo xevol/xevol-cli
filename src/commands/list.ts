@@ -9,6 +9,7 @@ interface ListOptions {
   page?: number;
   limit?: number;
   json?: boolean;
+  csv?: boolean;
 }
 
 function normalizeListResponse(data: Record<string, unknown>) {
@@ -52,6 +53,7 @@ export function registerListCommand(program: Command): void {
     .option("--page <number>", "Page number", (value) => Number.parseInt(value, 10), 1)
     .option("--limit <number>", "Items per page", (value) => Number.parseInt(value, 10), 20)
     .option("--json", "Raw JSON output")
+    .option("--csv", "CSV output")
     .action(async (options: ListOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -77,6 +79,29 @@ export function registerListCommand(program: Command): void {
         }
 
         const { items, page, total, totalPages } = normalizeListResponse(response);
+
+        if (options.csv) {
+          const csvQuote = (v: string) =>
+            v.includes(",") || v.includes('"') || v.includes("\n")
+              ? `"${v.replace(/"/g, '""')}"`
+              : v;
+          console.log("ID,Status,Lang,Duration,Channel,Title");
+          for (const item of items) {
+            const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
+            const status = pickValueOrDash(item, ["status", "state"]);
+            const lang = pickValueOrDash(item, ["lang", "outputLang", "language"]);
+            const durationRaw =
+              (item.duration as number | string | undefined) ??
+              (item.durationSec as number | undefined) ??
+              (item.durationSeconds as number | undefined) ??
+              (item.lengthSec as number | undefined);
+            const duration = formatDuration(durationRaw ?? "—");
+            const channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
+            const title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
+            console.log([id, status, lang, duration, channel, title].map(csvQuote).join(","));
+          }
+          return;
+        }
 
         console.log(chalk.bold(`Transcriptions (page ${page}/${totalPages}, ${total} total)`));
         console.log("");
