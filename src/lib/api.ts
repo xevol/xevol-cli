@@ -92,12 +92,21 @@ export async function apiFetch<T = unknown>(
     (requestHeaders as Headers).set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url, {
-    // Smart method default: GET for reads (no body), POST for writes (has body)
-    method: method ?? (body === undefined ? "GET" : "POST"),
-    headers: requestHeaders,
-    body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      // Smart method default: GET for reads (no body), POST for writes (has body)
+      method: method ?? (body === undefined ? "GET" : "POST"),
+      headers: requestHeaders,
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch (error) {
+    if ((error as Error).name === "TimeoutError") {
+      throw new Error(`Request timed out after 30s. Is the API at ${url.origin} reachable?`);
+    }
+    throw new Error(`Network error: could not reach ${url.origin}. Check your connection or API status.`);
+  }
 
   if (!response.ok) {
     // Parse the error body to give the user a useful error message

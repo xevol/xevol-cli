@@ -29,13 +29,15 @@ function formatWhoami(data: Record<string, unknown>): string {
     (data.monthly as { transcriptions?: number } | undefined)?.transcriptions ??
     (data.transcriptionsThisMonth as number | undefined);
 
-  if (plan && usage !== undefined) {
-    return `${email} (${plan} plan, ${usage} transcriptions this month)`;
-  }
+  const lines: string[] = [];
+  lines.push(`${chalk.dim("Email:")}    ${chalk.bold(email)}`);
   if (plan) {
-    return `${email} (${plan} plan)`;
+    lines.push(`${chalk.dim("Plan:")}     ${plan}`);
   }
-  return email;
+  if (usage !== undefined) {
+    lines.push(`${chalk.dim("Usage:")}    ${usage} transcriptions this month`);
+  }
+  return lines.join("\n");
 }
 
 /** Format seconds into a human-readable expiry string (e.g., "5 min", "30 sec"). */

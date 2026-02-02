@@ -44,6 +44,8 @@ export function registerResumeCommand(program: Command): void {
           return;
         }
 
+        const lang = jobState.lang ?? jobState.outputLang ?? "en";
+
         if (!options.json) {
           console.log(chalk.bold(`Resuming job for transcription: ${id}`));
           console.log(chalk.dim(`URL: ${jobState.url}`));
@@ -64,7 +66,7 @@ export function registerResumeCommand(program: Command): void {
             try {
               const spikeResponse = (await apiFetch(`/spikes/${id}`, {
                 method: "POST",
-                body: { promptId: spike.promptId, outputLang: "en" },
+                body: { promptId: spike.promptId, outputLang: lang },
                 token,
                 apiUrl,
               })) as Record<string, unknown>;
@@ -125,7 +127,7 @@ export function registerResumeCommand(program: Command): void {
             try {
               const spikeResponse = (await apiFetch(`/spikes/${id}`, {
                 method: "POST",
-                body: { promptId: spike.promptId, outputLang: "en" },
+                body: { promptId: spike.promptId, outputLang: lang },
                 token,
                 apiUrl,
               })) as Record<string, unknown>;

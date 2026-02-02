@@ -4,6 +4,9 @@ import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../li
 import { printJson } from "../lib/output";
 import { streamSSE, type SSEEvent } from "../lib/sse";
 
+/** Default SSE idle timeout in ms */
+const SSE_IDLE_TIMEOUT_MS = 30_000;
+
 interface StreamOptions {
   json?: boolean;
   lastEventId?: string;
@@ -26,13 +29,24 @@ export async function streamSpikeToTerminal(
   let lastEventId: string | undefined = options.lastEventId;
   let fullContent = "";
 
+  // SSE idle timeout: abort if no events received for 30s
+  const controller = new AbortController();
+  let idleTimer = setTimeout(() => controller.abort(), SSE_IDLE_TIMEOUT_MS);
+  const resetIdleTimer = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(), SSE_IDLE_TIMEOUT_MS);
+  };
+
   const stream = streamSSE(`/spikes/stream/${spikeId}`, {
     token,
     apiUrl,
     lastEventId: options.lastEventId,
+    signal: controller.signal,
   });
 
+  try {
   for await (const event of stream) {
+    resetIdleTimer();
     if (event.id) {
       lastEventId = event.id;
     }
@@ -106,6 +120,9 @@ export async function streamSpikeToTerminal(
   if (fullContent && !fullContent.endsWith("\n")) {
     process.stdout.write("\n");
   }
+  } finally {
+    clearTimeout(idleTimer);
+  }
 
   return { lastEventId, content: fullContent };
 }
@@ -117,6 +134,11 @@ export function registerStreamCommand(program: Command): void {
     .argument("<spikeId>", "Spike ID to stream")
     .option("--json", "Output raw SSE events as JSON")
     .option("--last-event-id <id>", "Resume from a specific event ID")
+    .addHelpText('after', `
+Examples:
+  $ xevol stream spike_abc123
+  $ xevol stream spike_abc123 --json
+  $ xevol stream spike_abc123 --last-event-id 42`)
     .action(async (spikeId: string, options: StreamOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};

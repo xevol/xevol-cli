@@ -7,6 +7,11 @@ import { extractId, extractStatus, pickValue } from "../lib/utils";
 import { saveJobState, type JobState, type SpikeState } from "../lib/jobs";
 import { streamSpikeToTerminal } from "./stream";
 
+const YOUTUBE_URL_RE = /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|shorts|live|embed)|youtu\.be\/)/i;
+
+/** Default SSE idle timeout in ms */
+const SSE_IDLE_TIMEOUT_MS = 30_000;
+
 interface AddOptions {
   lang?: string;
   wait?: boolean;
@@ -68,8 +73,20 @@ export function registerAddCommand(program: Command): void {
     .option("--spikes <prompts>", "Comma-separated prompt IDs to generate spikes after transcription (requires --wait)")
     .option("--stream", "Stream spike content in real-time via SSE (use with --wait --spikes)")
     .option("--json", "Raw JSON output")
+    .addHelpText('after', `
+Examples:
+  $ xevol add "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  $ xevol add "https://youtu.be/dQw4w9WgXcQ" --lang kk --wait
+  $ xevol add "https://www.youtube.com/watch?v=..." --wait --spikes review,summary --stream`)
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
+        // Validate YouTube URL before doing anything
+        if (!YOUTUBE_URL_RE.test(youtubeUrl)) {
+          console.error(chalk.red("Error:") + " Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...");
+          process.exitCode = 1;
+          return;
+        }
+
         const config = (await readConfig()) ?? {};
         const tokenOverride = getTokenOverride(options as { token?: string }, command);
         const { token, expired } = resolveToken(config, tokenOverride);
@@ -101,11 +118,17 @@ export function registerAddCommand(program: Command): void {
         }
 
         if (!options.json) {
-          console.log(`${chalk.green("✓")} Transcription created: ${id}`);
+          console.log(`${chalk.green("✔")} Transcription created: ${id}`);
           console.log(`Status: ${status}`);
         }
 
         if (options.wait) {
+          const promptIds = options.spikes ? options.spikes.split(",").map((s) => s.trim()).filter(Boolean) : [];
+          const totalSteps = 1 + promptIds.length;
+          if (!options.json) {
+            console.log(chalk.dim(`[1/${totalSteps}] Transcribing...`));
+          }
+
           const finalResponse = await waitForCompletion(id, token, apiUrl);
           if (options.json && !options.spikes) {
             printJson(finalResponse ?? response);
@@ -115,10 +138,9 @@ export function registerAddCommand(program: Command): void {
           if (options.spikes && finalResponse) {
             const status = extractStatus(finalResponse)?.toLowerCase() ?? "";
             if (!status.includes("complete")) {
-              console.error("Transcription did not complete — skipping spike generation.");
+              console.error(chalk.red("Error:") + " Transcription did not complete — skipping spike generation.");
             } else if (options.stream) {
               // === STREAMING MODE ===
-              const promptIds = options.spikes.split(",").map((s) => s.trim()).filter(Boolean);
               const lang = options.lang ?? "en";
               const spikeResults: Record<string, unknown>[] = [];
 
@@ -126,12 +148,19 @@ export function registerAddCommand(program: Command): void {
               const jobState: JobState = {
                 transcriptionId: id,
                 url: youtubeUrl,
+                lang: lang,
+                outputLang: lang,
                 spikes: [],
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
               };
 
-              for (const promptId of promptIds) {
+              for (let i = 0; i < promptIds.length; i++) {
+                const promptId = promptIds[i];
+                const stepNum = i + 2; // step 1 was transcription
+                if (!options.json) {
+                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating spike: ${promptId}...`));
+                }
                 const spinner = startSpinner(`Creating spike: ${promptId}...`);
 
                 try {
@@ -211,11 +240,15 @@ export function registerAddCommand(program: Command): void {
               }
             } else {
               // === POLLING MODE (existing behavior) ===
-              const promptIds = options.spikes.split(",").map((s) => s.trim()).filter(Boolean);
               const lang = options.lang ?? "en";
               const spikeResults: Record<string, unknown>[] = [];
 
-              for (const promptId of promptIds) {
+              for (let i = 0; i < promptIds.length; i++) {
+                const promptId = promptIds[i];
+                const stepNum = i + 2;
+                if (!options.json) {
+                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating spike: ${promptId}...`));
+                }
                 const spinner = startSpinner(`Generating spike: ${promptId}...`);
                 const started = Date.now();
                 const maxAttempts = 120;

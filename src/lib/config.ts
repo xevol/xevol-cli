@@ -28,6 +28,11 @@ export async function readConfig(): Promise<XevolConfig | null> {
     if ((error as { code?: string }).code === "ENOENT") {
       return null;
     }
+    // Handle corrupt JSON gracefully
+    if (error instanceof SyntaxError) {
+      console.error("Warning: config.json is corrupt. Run `xevol login` to fix it.");
+      return null;
+    }
     throw error;
   }
 }

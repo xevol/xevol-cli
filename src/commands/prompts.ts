@@ -41,10 +41,12 @@ export function registerPromptsCommand(program: Command): void {
         }
 
         if (options.csv) {
-          const csvQuote = (v: string) =>
-            v.includes(",") || v.includes('"') || v.includes("\n")
-              ? `"${v.replace(/"/g, '""')}"`
-              : v;
+          const csvQuote = (v: string) => {
+            const sanitized = v.replace(/\n/g, ' ');
+            return sanitized.includes(',') || sanitized.includes('"')
+              ? `"${sanitized.replace(/"/g, '""')}"`
+              : sanitized;
+          };
           console.log("ID,Name");
           for (const item of items) {
             console.log([item.id, item.name ?? "—"].map(csvQuote).join(","));
@@ -63,7 +65,7 @@ export function registerPromptsCommand(program: Command): void {
         const rows = items.map((item) => [item.id, item.name ?? "—"]);
         console.log(renderTable(["ID", "Name"], rows));
       } catch (error) {
-        console.error((error as Error).message);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

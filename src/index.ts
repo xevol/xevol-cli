@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
+import chalk from "chalk";
 import { createRequire } from "module";
 import { registerAddCommand } from "./commands/add";
 import { registerAuthCommands } from "./commands/login";
@@ -9,6 +10,7 @@ import { registerViewCommand } from "./commands/view";
 import { registerPromptsCommand } from "./commands/prompts";
 import { registerStreamCommand } from "./commands/stream";
 import { registerResumeCommand } from "./commands/resume";
+import { registerConfigCommand } from "./commands/config";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -19,7 +21,14 @@ program
   .name("xevol")
   .description("CLI for XEVol — transcribe, analyze, and explore YouTube content")
   .version(version)
-  .option("--token <token>", "Override auth token");
+  .option("--token <token>", "Override auth token")
+  .option("--no-color", "Disable colored output")
+  .hook("preAction", () => {
+    const opts = program.opts();
+    if (opts.color === false) {
+      chalk.level = 0;
+    }
+  });
 
 registerAuthCommands(program);
 registerListCommand(program);
@@ -29,5 +38,6 @@ registerSpikesCommand(program);
 registerPromptsCommand(program);
 registerStreamCommand(program);
 registerResumeCommand(program);
+registerConfigCommand(program);
 
 await program.parseAsync(process.argv);

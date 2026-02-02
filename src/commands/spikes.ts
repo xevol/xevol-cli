@@ -84,6 +84,11 @@ export function registerSpikesCommand(program: Command): void {
     .option("--prompt <id>", "Prompt ID for generation")
     .option("--lang <code>", "Output language", "en")
     .option("--json", "Raw JSON output")
+    .addHelpText('after', `
+Examples:
+  $ xevol spikes abc123
+  $ xevol spikes abc123 --prompt facts --lang kk
+  $ xevol spikes abc123 --generate --prompt review --json`)
     .action(async (id: string, options: SpikesOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -140,7 +145,7 @@ export function registerSpikesCommand(program: Command): void {
           console.log("No spike content available.");
         }
       } catch (error) {
-        console.error((error as Error).message);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

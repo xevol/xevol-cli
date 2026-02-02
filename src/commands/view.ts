@@ -109,7 +109,7 @@ export function registerViewCommand(program: Command): void {
         console.log(divider());
         console.log("Full transcript: use --raw");
       } catch (error) {
-        console.error((error as Error).message);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

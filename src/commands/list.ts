@@ -10,6 +10,7 @@ interface ListOptions {
   limit?: number;
   json?: boolean;
   csv?: boolean;
+  status?: string;
 }
 
 function normalizeListResponse(data: Record<string, unknown>) {
@@ -54,6 +55,13 @@ export function registerListCommand(program: Command): void {
     .option("--limit <number>", "Items per page", (value) => Number.parseInt(value, 10), 20)
     .option("--json", "Raw JSON output")
     .option("--csv", "CSV output")
+    .option("--status <status>", "Filter by status (complete, pending, error)")
+    .addHelpText('after', `
+Examples:
+  $ xevol list
+  $ xevol list --limit 5 --page 2
+  $ xevol list --status complete --csv
+  $ xevol list --json`)
     .action(async (options: ListOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -68,7 +76,7 @@ export function registerListCommand(program: Command): void {
 
         const apiUrl = resolveApiUrl(config);
         const response = (await apiFetch("/v1/transcriptions", {
-          query: { page: options.page, limit: options.limit },
+          query: { page: options.page, limit: options.limit, status: options.status },
           token,
           apiUrl,
         })) as Record<string, unknown>;
@@ -81,10 +89,12 @@ export function registerListCommand(program: Command): void {
         const { items, page, total, totalPages } = normalizeListResponse(response);
 
         if (options.csv) {
-          const csvQuote = (v: string) =>
-            v.includes(",") || v.includes('"') || v.includes("\n")
-              ? `"${v.replace(/"/g, '""')}"`
-              : v;
+          const csvQuote = (v: string) => {
+            const sanitized = v.replace(/\n/g, ' ');
+            return sanitized.includes(',') || sanitized.includes('"')
+              ? `"${sanitized.replace(/"/g, '""')}"`
+              : sanitized;
+          };
           console.log("ID,Status,Lang,Duration,Channel,Title");
           for (const item of items) {
             const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
@@ -134,7 +144,7 @@ export function registerListCommand(program: Command): void {
           console.log(`Page ${page} of ${totalPages} — use --page ${page + 1} for next`);
         }
       } catch (error) {
-        console.error((error as Error).message);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

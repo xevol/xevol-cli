@@ -19,6 +19,8 @@ export interface SpikeState {
 export interface JobState {
   transcriptionId: string;
   url: string;
+  lang?: string;
+  outputLang?: string;
   spikes: SpikeState[];
   createdAt: string;
   updatedAt: string;
