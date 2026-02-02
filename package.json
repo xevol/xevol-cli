@@ -1,0 +1,25 @@
+{
+  "name": "xevol",
+  "version": "0.0.1",
+  "description": "CLI for XEVol — transcribe, analyze, and explore YouTube content",
+  "type": "module",
+  "bin": {
+    "xevol": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": ["xevol", "transcription", "youtube", "cli"],
+  "author": "Kuan <kuka@xevol.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xevol/xevol-cli"
+  },
+  "homepage": "https://xevol.com",
+  "engines": {
+    "node": ">=18"
+  }
+}
