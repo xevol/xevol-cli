@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { promises as fs } from "fs";
 import path from "path";
@@ -154,16 +154,29 @@ export function TranscriptionDetail({
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const { data, loading, error, refresh } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
+  const { data: rawDetailData, loading: rawDetailLoading, error, refresh } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
+  const prevDetailRef = useRef<Record<string, unknown> | null>(null);
+  const data = rawDetailData ?? prevDetailRef.current;
+  useEffect(() => {
+    if (rawDetailData) prevDetailRef.current = rawDetailData;
+  }, [rawDetailData]);
+  // Only show loading spinner when no data exists yet (stale-while-revalidate)
+  const loading = rawDetailLoading && !data;
   const analysis = useMemo(() => unwrapAnalysis(data), [data]);
 
   // Fetch available prompts
   const {
-    data: promptsData,
-    loading: promptsLoading,
+    data: rawPromptsData,
+    loading: rawPromptsLoading,
     error: promptsError,
     refresh: refreshPrompts,
   } = useApi<Record<string, unknown>>("/v1/prompts", {}, []);
+  const prevPromptsRef = useRef<Record<string, unknown> | null>(null);
+  const promptsData = rawPromptsData ?? prevPromptsRef.current;
+  useEffect(() => {
+    if (rawPromptsData) prevPromptsRef.current = rawPromptsData;
+  }, [rawPromptsData]);
+  const promptsLoading = rawPromptsLoading && !promptsData;
 
   const prompts = useMemo(() => {
     const raw = (promptsData as any)?.prompts ?? (promptsData as any)?.data ?? [];

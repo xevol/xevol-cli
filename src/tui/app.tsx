@@ -11,6 +11,8 @@ import { SpikeViewer } from "./screens/SpikeViewer";
 import { Placeholder } from "./screens/Placeholder";
 import { Settings } from "./screens/Settings";
 import { AddUrl } from "./screens/AddUrl";
+import { apiFetch } from "../lib/api";
+import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 
 interface AppProps {
   version: string;
@@ -23,6 +25,29 @@ export function App({ version }: AppProps): JSX.Element {
   const backToDashboard = useMemo(() => () => reset("dashboard"), [reset]);
   const [footerHints, setFooterHints] = useState<Hint[]>([]);
   const [footerStatus, setFooterStatus] = useState<string | undefined>(undefined);
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
+  const [userPlan, setUserPlan] = useState<string | undefined>(undefined);
+
+  // Fetch user info once on mount
+  useEffect(() => {
+    void (async () => {
+      try {
+        const config = (await readConfig()) ?? {};
+        const { token } = resolveToken(config);
+        if (!token) return;
+        const apiUrl = resolveApiUrl(config);
+        const data = await apiFetch<Record<string, unknown>>("/auth/cli/status", { token, apiUrl });
+        const email =
+          (data.email as string | undefined) ??
+          (data.user as Record<string, unknown> | undefined)?.email?.toString();
+        const plan = (data.plan as string | undefined) ?? undefined;
+        if (email) setUserEmail(email);
+        if (plan) setUserPlan(plan);
+      } catch {
+        // Silently ignore — header will just not show user info
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     setFooterHints([]);
@@ -121,7 +146,7 @@ export function App({ version }: AppProps): JSX.Element {
 
   return (
     <Box flexDirection="column">
-      <Header version={version} screen={currentScreen} />
+      <Header version={version} screen={currentScreen} email={userEmail} plan={userPlan} />
       <Box flexDirection="column" flexGrow={1}>
         <Box key={currentScreen} flexDirection="column" flexGrow={1}>
           {content}

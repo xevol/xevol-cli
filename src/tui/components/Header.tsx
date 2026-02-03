@@ -16,15 +16,26 @@ const SCREEN_LABELS: Record<ScreenName, string> = {
 interface HeaderProps {
   version: string;
   screen: ScreenName;
+  email?: string;
+  plan?: string;
 }
 
-export function Header({ version, screen }: HeaderProps): JSX.Element {
+export function Header({ version, screen, email, plan }: HeaderProps): JSX.Element {
+  const userInfo = [email, plan].filter(Boolean).join(" · ");
   return (
     <Box paddingX={1} paddingY={0} justifyContent="space-between">
       <Text color={colors.primary}>
         xevol v{version}
       </Text>
-      <Text color={colors.secondary}>{SCREEN_LABELS[screen]}</Text>
+      <Box>
+        {userInfo ? (
+          <>
+            <Text color={colors.secondary}>{userInfo}</Text>
+            <Text color={colors.secondary}> │ </Text>
+          </>
+        ) : null}
+        <Text color={colors.secondary}>{SCREEN_LABELS[screen]}</Text>
+      </Box>
     </Box>
   );
 }

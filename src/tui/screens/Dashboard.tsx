@@ -129,14 +129,7 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
   const statusLoading = rawStatusLoading && !_cachedStatus;
   const recentLoading = rawRecentLoading && !_cachedRecent;
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      void refreshRecent();
-    }, 30000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, [refreshRecent]);
+  // Auto-refresh removed — users can press `r` to refresh
 
   useEffect(() => {
     setFooterHints([

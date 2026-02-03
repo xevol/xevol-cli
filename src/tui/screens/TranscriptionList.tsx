@@ -140,29 +140,21 @@ export function TranscriptionList({
     }
   }, [page]);
 
+  // Read config limit once on mount only
+  const configLimitLoaded = useRef(false);
   useEffect(() => {
-    let mounted = true;
+    if (configLimitLoaded.current) return;
+    configLimitLoaded.current = true;
     void (async () => {
       const config = await readConfig();
       const defaultLimit = config?.default?.limit;
-      if (!mounted) return;
-      if (typeof defaultLimit === "number" && defaultLimit > 0 && defaultLimit !== limit) {
+      if (typeof defaultLimit === "number" && defaultLimit > 0 && defaultLimit !== 20) {
         setPagination({ limit: defaultLimit, page: 1 });
       }
     })();
-    return () => {
-      mounted = false;
-    };
-  }, [limit, setPagination]);
+  }, [setPagination]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      void refresh();
-    }, 30000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, [refresh]);
+  // Auto-refresh removed — users can press `r` to refresh
 
   useEffect(() => {
     if (!searchActive) return;
@@ -177,14 +169,13 @@ export function TranscriptionList({
 
   const normalized = useMemo(() => normalizeListResponse(data ?? {}), [data]);
 
+  // Only update metadata from API response — never feed page/limit back (causes loops)
   useEffect(() => {
     setPagination({
-      page: normalized.page,
-      limit: normalized.limit,
       total: normalized.total,
       totalPages: normalized.totalPages,
     });
-  }, [normalized, setPagination]);
+  }, [normalized.total, normalized.totalPages, setPagination]);
 
   const listItems = useMemo(() => {
     return normalized.items.map((item) => {
