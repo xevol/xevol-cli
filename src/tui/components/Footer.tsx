@@ -16,6 +16,7 @@ export function Footer({ hints, status }: FooterProps): JSX.Element {
   return (
     <Box paddingX={1} paddingY={0}>
       <Text>
+        {status ? <Text color={colors.secondary}>{status} · </Text> : null}
         {hints.map((hint, index) => (
           <Text key={`${hint.key}-${index}`}>
             {index > 0 && <Text color={colors.secondary}> · </Text>}
@@ -25,7 +26,6 @@ export function Footer({ hints, status }: FooterProps): JSX.Element {
             )}
           </Text>
         ))}
-        {status ? <Text color={colors.secondary}> · {status}</Text> : null}
       </Text>
     </Box>
   );

@@ -795,11 +795,6 @@ export function TranscriptionList({
         </Box>
       )}
 
-      <Box marginTop={1}>
-        <Text color={colors.secondary}>
-          Page {page} / {totalPages} · {total} total
-        </Text>
-      </Box>
     </Box>
   );
 
