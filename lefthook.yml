@@ -1,0 +1,46 @@
+pre-commit:
+  parallel: false
+  commands:
+    console-check:
+      glob: "*.{ts,tsx}"
+      run: |
+        if git diff --cached --name-only | xargs grep -n "console\.log" 2>/dev/null; then
+          echo "⚠️  Warning: console.log found in staged files (non-blocking)"
+        fi
+      stage_fixed: false
+      
+    biome-check:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: bunx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --staged {staged_files}
+      stage_fixed: true
+      
+    build:
+      run: bun run build
+
+pre-push:
+  parallel: false
+  commands:
+    build:
+      run: bun run build
+      
+    lint:
+      run: bun run lint
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        MSG=$(head -n1 {1})
+        PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+"
+        if ! echo "$MSG" | grep -Eq "$PATTERN"; then
+          echo "❌ Commit message must follow Conventional Commits format:"
+          echo "   <type>(<scope>): <subject>"
+          echo ""
+          echo "   Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+          echo ""
+          echo "   Examples:"
+          echo "     feat: add user authentication"
+          echo "     fix(api): handle null response"
+          echo "     docs: update README"
+          exit 1
+        fi
