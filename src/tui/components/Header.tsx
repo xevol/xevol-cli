@@ -1,12 +1,16 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { colors } from "../theme";
-
-export type ScreenName = "list" | "help";
+import type { ScreenName } from "../hooks/useNavigation";
 
 const SCREEN_LABELS: Record<ScreenName, string> = {
+  dashboard: "Dashboard",
   list: "Transcriptions",
+  detail: "Transcription",
+  "spike-viewer": "Spikes",
   help: "Help",
+  workspaces: "Workspaces",
+  settings: "Settings",
 };
 
 interface HeaderProps {

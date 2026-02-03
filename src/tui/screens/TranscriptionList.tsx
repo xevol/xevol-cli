@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { spawn } from "child_process";
 import { useApi } from "../hooks/useApi";
 import { usePagination } from "../hooks/usePagination";
 import { StatusBadge } from "../components/StatusBadge";
@@ -11,6 +10,8 @@ import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { pickValueOrDash } from "../../lib/utils";
 import { formatDurationCompact } from "../../lib/output";
+import { openUrl } from "../utils/openUrl";
+import type { NavigationState } from "../hooks/useNavigation";
 
 interface ListParams {
   status?: string;
@@ -19,6 +20,8 @@ interface ListParams {
 
 interface TranscriptionListProps {
   params?: ListParams;
+  navigation: Pick<NavigationState, "push">;
+  onBack: () => void;
 }
 
 type RawItem = Record<string, unknown>;
@@ -84,29 +87,7 @@ function normalizeListResponse(data: Record<string, unknown>) {
   return { items, page, limit, total, totalPages };
 }
 
-function openUrl(url: string): void {
-  let cmd: string;
-  let args: string[];
-
-  if (process.platform === "darwin") {
-    cmd = "open";
-    args = [url];
-  } else if (process.platform === "win32") {
-    cmd = "cmd";
-    args = ["/c", "start", "", url];
-  } else {
-    cmd = "xdg-open";
-    args = [url];
-  }
-
-  const child = spawn(cmd, args, { stdio: "ignore", detached: true });
-  child.on("error", () => {
-    // Best-effort; no-op if the OS command fails.
-  });
-  child.unref();
-}
-
-export function TranscriptionList({ params }: TranscriptionListProps): JSX.Element {
+export function TranscriptionList({ params, navigation, onBack }: TranscriptionListProps): JSX.Element {
   const [status] = useState<string | undefined>(params?.status);
   const [sort] = useState<string | undefined>(params?.sort);
   const [searchActive, setSearchActive] = useState(false);
@@ -230,6 +211,11 @@ export function TranscriptionList({ params }: TranscriptionListProps): JSX.Eleme
       return;
     }
 
+    if (key.escape || key.backspace) {
+      onBack();
+      return;
+    }
+
     if (key.upArrow && filteredItems.length > 0) {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
@@ -242,8 +228,7 @@ export function TranscriptionList({ params }: TranscriptionListProps): JSX.Eleme
 
     if (key.return) {
       if (selectedItem) {
-        console.log(selectedItem.id);
-        setNotice(`Selected ${selectedItem.id}`);
+        navigation.push("detail", { id: selectedItem.id });
       }
       return;
     }

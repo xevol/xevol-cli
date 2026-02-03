@@ -1,18 +1,26 @@
 import { useState } from "react";
 
-export type ScreenName = "list" | "help";
+export type ScreenName =
+  | "dashboard"
+  | "list"
+  | "detail"
+  | "spike-viewer"
+  | "help"
+  | "workspaces"
+  | "settings";
 
 interface ScreenEntry {
   screen: ScreenName;
   params?: Record<string, unknown>;
 }
 
-interface NavigationState {
+export interface NavigationState {
   currentScreen: ScreenName;
   params: Record<string, unknown>;
   push: (screen: ScreenName, params?: Record<string, unknown>) => void;
   pop: () => void;
   replace: (screen: ScreenName, params?: Record<string, unknown>) => void;
+  reset: (screen: ScreenName, params?: Record<string, unknown>) => void;
 }
 
 export function useNavigation(initialScreen: ScreenName, params?: Record<string, unknown>): NavigationState {
@@ -35,11 +43,16 @@ export function useNavigation(initialScreen: ScreenName, params?: Record<string,
     });
   };
 
+  const reset = (screen: ScreenName, nextParams?: Record<string, unknown>) => {
+    setStack([{ screen, params: nextParams }]);
+  };
+
   return {
     currentScreen: current.screen,
     params: current.params ?? {},
     push,
     pop,
     replace,
+    reset,
   };
 }

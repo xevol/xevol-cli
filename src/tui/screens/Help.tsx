@@ -14,13 +14,14 @@ const KEYBINDINGS: Array<{ key: string; action: string }> = [
   { key: "d", action: "Delete selected" },
   { key: "o", action: "Open in browser" },
   { key: "r", action: "Refresh list" },
+  { key: "Esc / Backspace", action: "Return to dashboard" },
   { key: "?", action: "Toggle help" },
   { key: "q", action: "Quit" },
 ];
 
 export function Help({ onClose }: HelpProps): JSX.Element {
   useInput((input, key) => {
-    if (key.escape) {
+    if (key.escape || key.backspace) {
       onClose();
     }
   });
