@@ -698,8 +698,10 @@ export function TranscriptionList({
     }
   });
 
+  // Reserve rows for app chrome: Header(1) + StatsBar(1) + Footer(1) + padding(1) = 4
+  const availableRows = terminal.rows - 4;
   const listPanel = (
-    <Box flexDirection="column" paddingX={1} paddingY={1} height={terminal.rows - 2} overflow="hidden">
+    <Box flexDirection="column" paddingX={1} paddingY={1} height={availableRows} overflow="hidden">
       {searchActive && (
         <Box flexDirection="column" marginBottom={1}>
           <Box>
@@ -798,7 +800,7 @@ export function TranscriptionList({
 
   // Preview panel for wide mode — fixed height prevents layout jumps on load
   const previewWidth = Math.floor(terminal.columns * 0.6) - 2;
-  const previewHeight = terminal.rows - 4;
+  const previewHeight = availableRows;
   const previewPanel = (
     <Box flexDirection="column" paddingX={1} paddingY={1} height={previewHeight} overflow="hidden">
       {previewData ? (
