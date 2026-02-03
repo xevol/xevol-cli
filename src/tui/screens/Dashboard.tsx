@@ -187,14 +187,14 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
     const lower = input.toLowerCase();
     if (key.upArrow || lower === "k") {
       if (selectableCount > 0) {
-        setSelectedIndex((prev) => Math.max(0, prev - 1));
+        setSelectedIndex((prev) => (prev <= 0 ? selectableCount - 1 : prev - 1));
       }
       return;
     }
 
     if (key.downArrow || lower === "j") {
       if (selectableCount > 0) {
-        setSelectedIndex((prev) => Math.min(selectableCount - 1, prev + 1));
+        setSelectedIndex((prev) => (prev >= selectableCount - 1 ? 0 : prev + 1));
       }
       return;
     }

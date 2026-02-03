@@ -74,7 +74,7 @@ export function Settings({ onBack, setFooterHints }: SettingsProps): JSX.Element
         key: "apiUrl" as const,
         label: "API URL",
         value: current.apiUrl ?? DEFAULT_API_URL,
-        editable: true,
+        editable: false,
       },
       {
         key: "default.lang" as const,
