@@ -19,7 +19,7 @@ const program = new Command();
 
 program
   .name("xevol")
-  .description("CLI for XEVol — transcribe, analyze, and explore YouTube content")
+  .description("XEVol — your info manager. Transcribe, analyze, and explore YouTube content from the terminal.")
   .version(version)
   .option("--token <token>", "Override auth token")
   .option("--no-color", "Disable colored output")

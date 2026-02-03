@@ -5,6 +5,34 @@ import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../li
 import { formatDuration, formatStatus, printJson, renderTable } from "../lib/output";
 import { pickValueOrDash } from "../lib/utils";
 
+function formatCreatedAt(raw: string | undefined): string {
+  if (!raw) return "—";
+  try {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return "—";
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHrs = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    // Show compact date for older items
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    if (d.getFullYear() === now.getFullYear()) {
+      return `${month}-${day}`;
+    }
+    return `${d.getFullYear()}-${month}-${day}`;
+  } catch {
+    return "—";
+  }
+}
+
 interface ListOptions {
   page?: number;
   limit?: number;
@@ -95,7 +123,7 @@ Examples:
               ? `"${sanitized.replace(/"/g, '""')}"`
               : sanitized;
           };
-          console.log("ID,Status,Lang,Duration,Channel,Title");
+          console.log("ID,Status,Lang,Duration,Channel,Title,Created");
           for (const item of items) {
             const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
             const status = pickValueOrDash(item, ["status", "state"]);
@@ -108,7 +136,8 @@ Examples:
             const duration = formatDuration(durationRaw ?? "—");
             const channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
             const title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
-            console.log([id, status, lang, duration, channel, title].map(csvQuote).join(","));
+            const created = formatCreatedAt(item.createdAt as string | undefined);
+            console.log([id, status, lang, duration, channel, title, created].map(csvQuote).join(","));
           }
           return;
         }
@@ -128,8 +157,9 @@ Examples:
           const duration = formatDuration(durationRaw ?? "—");
           const channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
           const title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
+          const created = formatCreatedAt(item.createdAt as string | undefined);
 
-          return [id, status, lang, duration, channel, title];
+          return [id, status, lang, duration, channel, title, created];
         });
 
         if (rows.length === 0) {
@@ -137,7 +167,7 @@ Examples:
           return;
         }
 
-        console.log(renderTable(["ID", "Status", "Lang", "Duration", "Channel", "Title"], rows));
+        console.log(renderTable(["ID", "Status", "Lang", "Duration", "Channel", "Title", "Created"], rows));
 
         if (totalPages > 1 && page < totalPages) {
           console.log("");
