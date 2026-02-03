@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, render, useApp, useInput, useStdout } from "ink";
 import { Header } from "./components/Header";
 import { Footer, type Hint } from "./components/Footer";
+import { StatsBar } from "./components/StatsBar";
 import { useNavigation } from "./hooks/useNavigation";
 import { TranscriptionList } from "./screens/TranscriptionList";
 import { Help } from "./screens/Help";
@@ -27,6 +28,10 @@ export function App({ version }: AppProps): JSX.Element {
   const [footerStatus, setFooterStatus] = useState<string | undefined>(undefined);
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [userPlan, setUserPlan] = useState<string | undefined>(undefined);
+  const [statsTotal, setStatsTotal] = useState<number | undefined>(undefined);
+  const [statsUsed, setStatsUsed] = useState<number | undefined>(undefined);
+  const [statsLimit, setStatsLimit] = useState<number | undefined>(undefined);
+  const [statsWorkspace, setStatsWorkspace] = useState<string | undefined>(undefined);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
 
   // Check for updates (non-blocking, once per day)
@@ -51,6 +56,14 @@ export function App({ version }: AppProps): JSX.Element {
         const plan = (data.plan as string | undefined) ?? undefined;
         if (email) setUserEmail(email);
         if (plan) setUserPlan(plan);
+        const total = (data.total as number | undefined) ?? (data.transcriptionCount as number | undefined);
+        const used = (data.used as number | undefined) ?? (data.monthlyUsage as number | undefined);
+        const planLimit = (data.limit as number | undefined) ?? (data.monthlyLimit as number | undefined);
+        const workspace = (data.workspace as string | undefined) ?? (data.workspaceName as string | undefined);
+        if (total !== undefined) setStatsTotal(total);
+        if (used !== undefined) setStatsUsed(used);
+        if (planLimit !== undefined) setStatsLimit(planLimit);
+        if (workspace) setStatsWorkspace(workspace);
       } catch {
         // Silently ignore — header will just not show user info
       }
@@ -171,6 +184,7 @@ export function App({ version }: AppProps): JSX.Element {
           {content}
         </Box>
       </Box>
+      <StatsBar total={statsTotal} used={statsUsed} limit={statsLimit} workspace={statsWorkspace} />
       <Footer hints={footerHints} status={footerStatus} />
       {updateInfo && (
         <Box paddingX={1}>
