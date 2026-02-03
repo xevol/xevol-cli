@@ -142,6 +142,7 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
     setFooterHints([
       { key: "↑/↓", description: "move" },
       { key: "Enter", description: "select/toggle" },
+      { key: "a", description: "add URL" },
       { key: "r", description: "refresh" },
       { key: "?", description: "help" },
       { key: "q", description: "quit" },
@@ -204,6 +205,11 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
       return;
     }
 
+    if (lower === "a") {
+      navigation.push("add-url");
+      return;
+    }
+
     if (key.return) {
       if (selectedIndex < MENU_ITEMS.length) {
         const item = MENU_ITEMS[selectedIndex];
@@ -246,21 +252,11 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
-      <Box flexDirection="column" marginBottom={1}>
-        {LOGO_LINES.map((line, i) => (
-          <Text key={`logo-${i}`} color={colors.primary}>
-            {line}
-          </Text>
-        ))}
-        <Box marginTop={1}>
-          <Text color={colors.secondary}>v{version}</Text>
+      {accountLine ? (
+        <Box marginBottom={1}>
+          <Text color={colors.secondary}>{accountLine}</Text>
         </Box>
-        {accountLine ? (
-          <Box marginTop={1}>
-            <Text color={colors.secondary}>{accountLine}</Text>
-          </Box>
-        ) : null}
-      </Box>
+      ) : null}
 
       {statusLoading && (
         <Box marginBottom={1}>

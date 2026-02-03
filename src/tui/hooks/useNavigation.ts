@@ -7,7 +7,8 @@ export type ScreenName =
   | "spike-viewer"
   | "help"
   | "workspaces"
-  | "settings";
+  | "settings"
+  | "add-url";
 
 interface ScreenEntry {
   screen: ScreenName;

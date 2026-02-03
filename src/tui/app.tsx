@@ -10,6 +10,7 @@ import { TranscriptionDetail } from "./screens/TranscriptionDetail";
 import { SpikeViewer } from "./screens/SpikeViewer";
 import { Placeholder } from "./screens/Placeholder";
 import { Settings } from "./screens/Settings";
+import { AddUrl } from "./screens/AddUrl";
 
 interface AppProps {
   version: string;
@@ -29,6 +30,9 @@ export function App({ version }: AppProps): JSX.Element {
   }, [currentScreen]);
 
   useInput((input) => {
+    // Don't intercept keys when text input screens are active
+    if (currentScreen === "add-url") return;
+
     if (input === "q") {
       exit();
       return;
@@ -94,6 +98,14 @@ export function App({ version }: AppProps): JSX.Element {
     content = <Placeholder title="Workspaces" onBack={backToDashboard} setFooterHints={setFooterHints} />;
   } else if (currentScreen === "settings") {
     content = <Settings onBack={backToDashboard} setFooterHints={setFooterHints} />;
+  } else if (currentScreen === "add-url") {
+    content = (
+      <AddUrl
+        onBack={backToDashboard}
+        terminal={terminal}
+        setFooterHints={setFooterHints}
+      />
+    );
   } else {
     content = (
       <TranscriptionList
