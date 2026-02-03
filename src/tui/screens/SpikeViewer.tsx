@@ -33,6 +33,23 @@ function normalizeSpikes(data: Record<string, unknown>): RawItem[] {
   );
 }
 
+/** Build a short readable label for a spike (prefer name fields, truncate raw prompt). */
+function spikeLabel(item: RawItem, maxLen = 40): string {
+  // Prefer explicit name/title fields
+  const name =
+    (item.promptName as string | undefined) ??
+    (item.name as string | undefined) ??
+    (item.title as string | undefined);
+  if (name) return name.length > maxLen ? `${name.slice(0, maxLen)}…` : name;
+
+  // Fall back to prompt text — truncate to first sentence or maxLen
+  const raw = (item.prompt as string | undefined) ?? (item.promptId as string | undefined) ?? "Spike";
+  const clean = raw.replace(/\s+/g, " ").trim();
+  const periodIdx = clean.indexOf(".");
+  if (periodIdx > 0 && periodIdx < maxLen) return clean.slice(0, periodIdx + 1);
+  return clean.length > maxLen ? `${clean.slice(0, maxLen)}…` : clean;
+}
+
 function getSpikeContent(item: RawItem): string {
   return (
     (item.markdown as string | undefined) ??
@@ -304,7 +321,7 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
       {!loading && !error && activeSpike && (
         <Box flexDirection="column">
           <Text color={colors.primary}>
-            Spike: {pickValue(activeSpike, ["promptName", "promptId", "prompt"]) ?? "Spike"}
+            Spike: {spikeLabel(activeSpike)}
           </Text>
           {streaming && (
             <Box marginTop={1}>
@@ -327,7 +344,7 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
           {spikes.length === 0 && <Text color={colors.secondary}>No spikes found.</Text>}
           {spikes.map((item, index) => {
             const isSelected = index === selectedIndex;
-            const promptName = pickValue(item, ["promptName", "promptId", "prompt"]) ?? "Spike";
+            const promptName = spikeLabel(item);
             const status = pickValue(item, ["status", "state"]) ?? "—";
 
             return (
