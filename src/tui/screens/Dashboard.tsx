@@ -72,8 +72,6 @@ function buildUsageLines(data: Record<string, unknown>): string[] {
   const limit = limits.transcriptions ?? "∞";
 
   const lines: string[] = [];
-  if (email) lines.push(`Email: ${email}`);
-  lines.push(`Plan: ${plan}`);
   lines.push(`Status: ${status}`);
   lines.push(`Usage: ${transcriptions} / ${limit} transcriptions (this ${period})`);
 

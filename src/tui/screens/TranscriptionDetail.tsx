@@ -591,9 +591,6 @@ export function TranscriptionDetail({
                         <Text color={isSelected ? colors.primary : undefined}>
                           {isFeatured ? "★ " : "  "}{prompt.name}
                         </Text>
-                        {prompt.description && (
-                          <Text color={colors.secondary}> — {prompt.description}</Text>
-                        )}
                       </Box>
                     </Box>
                   );

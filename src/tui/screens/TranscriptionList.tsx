@@ -461,12 +461,12 @@ export function TranscriptionList({
     }
 
     if (lower === "n") {
-      if (page < totalPages) nextPage();
+      nextPage();
       return;
     }
 
     if (lower === "p") {
-      if (page > 1) prevPage();
+      prevPage();
       return;
     }
 
