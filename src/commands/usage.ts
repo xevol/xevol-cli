@@ -49,23 +49,23 @@ export function registerUsageCommand(program: Command): void {
           return;
         }
 
-        // Extract fields with flexible paths
+        // Extract fields from actual API response shapes
         const plan =
+          (subscription as any)?.plan ??
           (subscription as any)?.plan?.name ??
           (subscription as any)?.planName ??
-          (subscription as any)?.plan ??
           "Free";
 
         const count =
+          (usage as any)?.transcriptions ??
           (usage as any)?.count ??
           (usage as any)?.transcriptionsThisMonth ??
-          (usage as any)?.total ??
           0;
 
         const limit =
+          (subscription as any)?.limits?.transcriptions ??
           (subscription as any)?.plan?.limit ??
           (subscription as any)?.planLimit ??
-          (subscription as any)?.limit ??
           "∞";
 
         const status =
@@ -73,12 +73,16 @@ export function registerUsageCommand(program: Command): void {
           (subscription as any)?.plan?.status ??
           "active";
 
+        const period =
+          (subscription as any)?.period ??
+          "month";
+
         console.log("");
         console.log(`  ${chalk.bold("Usage & Subscription")}`);
         console.log("");
         console.log(`  ${chalk.dim("Plan:")}       ${plan}`);
         console.log(`  ${chalk.dim("Status:")}     ${status}`);
-        console.log(`  ${chalk.dim("Usage:")}      ${count} / ${limit} transcriptions (last 30 days)`);
+        console.log(`  ${chalk.dim("Usage:")}      ${count} / ${limit} transcriptions (this ${period})`);
 
         if (usage && !subscription) {
           console.log("");
