@@ -1,0 +1,7 @@
+PLAN.md
+*.md
+!README.md
+.git
+node_modules
+bun.lock
+src

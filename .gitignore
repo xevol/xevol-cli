@@ -1,0 +1,24 @@
+# Build artifacts
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Compiled binaries
+xevol-*-*
+
+# IDE
+.vscode/
+.idea/
+
+# Temp files
+plan.md
+PLAN.md
+*.md.bak
+src/tui/APP_CHANGES.md
+src/tui/APP_CHANGES_UX.md
+
+# Review docs (project-specific)
+REVIEW-*.md
+AUTH-AUDIT.md
+CLI-AUDIT.md
