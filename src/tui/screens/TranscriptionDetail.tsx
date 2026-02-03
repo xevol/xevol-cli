@@ -576,25 +576,36 @@ export function TranscriptionDetail({
               )}
               {!promptsLoading &&
                 !promptsError &&
-                prompts.map((prompt, index) => {
-                  const isSelected = index === promptSelectedIndex;
-                  const isFeatured = FEATURED_PROMPT_IDS.includes(prompt.id);
-
-                  return (
-                    <Box key={prompt.id}>
-                      <Box width={2}>
-                        <Text color={isSelected ? colors.primary : colors.secondary}>
-                          {isSelected ? "›" : " "}
-                        </Text>
-                      </Box>
-                      <Box flexDirection="row">
-                        <Text color={isSelected ? colors.primary : undefined}>
-                          {isFeatured ? "★ " : "  "}{prompt.name}
-                        </Text>
-                      </Box>
-                    </Box>
+                (() => {
+                  const maxVisible = Math.max(4, terminal.rows - 14);
+                  const maxStart = Math.max(0, prompts.length - maxVisible);
+                  const windowStart = Math.min(
+                    Math.max(0, promptSelectedIndex - Math.floor(maxVisible / 2)),
+                    maxStart,
                   );
-                })}
+                  const visible = prompts.slice(windowStart, windowStart + maxVisible);
+
+                  return visible.map((prompt, i) => {
+                    const realIndex = windowStart + i;
+                    const isSelected = realIndex === promptSelectedIndex;
+                    const isFeatured = FEATURED_PROMPT_IDS.includes(prompt.id);
+
+                    return (
+                      <Box key={prompt.id}>
+                        <Box width={2}>
+                          <Text color={isSelected ? colors.primary : colors.secondary}>
+                            {isSelected ? "›" : " "}
+                          </Text>
+                        </Box>
+                        <Box flexDirection="row">
+                          <Text color={isSelected ? colors.primary : undefined}>
+                            {isFeatured ? "★ " : "  "}{prompt.name}
+                          </Text>
+                        </Box>
+                      </Box>
+                    );
+                  });
+                })()}
             </Box>
           )}
 
