@@ -32,71 +32,45 @@ export function registerUsageCommand(program: Command): void {
         const apiUrl = resolveApiUrl(config);
         const spinner = startSpinner("Fetching usage data…");
 
-        const [usageResponse, subscriptionResponse] = await Promise.allSettled([
-          apiFetch("/v1/usage", { token, apiUrl }) as Promise<Record<string, unknown>>,
-          apiFetch("/v1/subscription", { token, apiUrl }) as Promise<Record<string, unknown>>,
-        ]);
+        const data = (await apiFetch("/auth/cli/status", {
+          token,
+          apiUrl,
+        })) as Record<string, unknown>;
 
         spinner.stop();
 
-        const usage =
-          usageResponse.status === "fulfilled" ? usageResponse.value : null;
-        const subscription =
-          subscriptionResponse.status === "fulfilled" ? subscriptionResponse.value : null;
-
         if (options.json) {
-          printJson({ usage, subscription });
+          printJson(data);
           return;
         }
 
-        // Extract fields from actual API response shapes
-        const plan =
-          (subscription as any)?.plan ??
-          (subscription as any)?.plan?.name ??
-          (subscription as any)?.planName ??
-          "Free";
+        const plan = (data.plan as string) ?? "free";
+        const status = (data.status as string) ?? "active";
+        const period = (data.period as string) ?? "month";
+        const email = (data.email as string) ?? "";
+        const usage = (data.usage as Record<string, number>) ?? {};
+        const limits = (data.limits as Record<string, number>) ?? {};
+        const periodEnd = data.current_period_end as string | null;
 
-        const count =
-          (usage as any)?.transcriptions ??
-          (usage as any)?.count ??
-          (usage as any)?.transcriptionsThisMonth ??
-          0;
-
-        const limit =
-          (subscription as any)?.limits?.transcriptions ??
-          (subscription as any)?.plan?.limit ??
-          (subscription as any)?.planLimit ??
-          "∞";
-
-        const status =
-          (subscription as any)?.status ??
-          (subscription as any)?.plan?.status ??
-          "active";
-
-        const period =
-          (subscription as any)?.period ??
-          "month";
+        const txCount = usage.transcriptions ?? 0;
+        const txLimit = limits.transcriptions ?? "∞";
 
         console.log("");
         console.log(`  ${chalk.bold("Usage & Subscription")}`);
         console.log("");
+        if (email) {
+          console.log(`  ${chalk.dim("Email:")}      ${email}`);
+        }
         console.log(`  ${chalk.dim("Plan:")}       ${plan}`);
         console.log(`  ${chalk.dim("Status:")}     ${status}`);
-        console.log(`  ${chalk.dim("Usage:")}      ${count} / ${limit} transcriptions (this ${period})`);
-
-        if (usage && !subscription) {
-          console.log("");
-          console.log(chalk.dim("  ⚠ Could not fetch subscription details"));
+        console.log(`  ${chalk.dim("Usage:")}      ${txCount} / ${txLimit} transcriptions (this ${period})`);
+        if (periodEnd) {
+          const endDate = new Date(periodEnd);
+          if (!Number.isNaN(endDate.getTime())) {
+            const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / 86400000));
+            console.log(`  ${chalk.dim("Renews:")}     ${endDate.toLocaleDateString()} (${daysLeft} days)`);
+          }
         }
-        if (!usage && subscription) {
-          console.log("");
-          console.log(chalk.dim("  ⚠ Could not fetch usage details"));
-        }
-        if (!usage && !subscription) {
-          console.log("");
-          console.log(chalk.yellow("  Could not fetch usage or subscription data."));
-        }
-
         console.log("");
       } catch (error) {
         console.error(chalk.red("Error:") + " " + (error as Error).message);
