@@ -413,12 +413,12 @@ export function TranscriptionList({
       return;
     }
 
-    if (key.upArrow && listItems.length > 0) {
+    if ((key.upArrow || lower === "k") && listItems.length > 0) {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
     }
 
-    if (key.downArrow && listItems.length > 0) {
+    if ((key.downArrow || lower === "j") && listItems.length > 0) {
       setSelectedIndex((prev) => Math.min(listItems.length - 1, prev + 1));
       return;
     }

@@ -517,14 +517,14 @@ export function TranscriptionDetail({
         color={activeTab === "transcript" ? colors.primary : colors.secondary}
         bold={activeTab === "transcript"}
       >
-        {activeTab === "transcript" ? "▸ " : "  "}1 Transcript
+        {activeTab === "transcript" ? "▸ " : "  "}Transcript
       </Text>
       <Text color={colors.secondary}>  │  </Text>
       <Text
         color={activeTab === "spikes" ? colors.primary : colors.secondary}
         bold={activeTab === "spikes"}
       >
-        {activeTab === "spikes" ? "▸ " : "  "}2 Spikes
+        {activeTab === "spikes" ? "▸ " : "  "}Spikes
       </Text>
     </Box>
   );

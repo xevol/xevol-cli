@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
+import { useApi } from "../hooks/useApi";
 import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
 import { DEFAULT_API_URL, readConfig, writeConfig, type XevolConfig } from "../../lib/config";
@@ -17,6 +18,33 @@ const LANGUAGES = ["en", "de", "es", "fr", "it", "ja", "kk", "ko", "ru"] as cons
 
 type LanguageCode = (typeof LANGUAGES)[number];
 
+function buildUsageLines(data: Record<string, unknown>): string[] {
+  const usage = (data.usage as Record<string, number>) ?? {};
+  const limits = (data.limits as Record<string, number>) ?? {};
+  const period = (data.period as string) ?? "month";
+  const periodEnd = data.current_period_end as string | null | undefined;
+  const plan = (data.plan as string) ?? "free";
+  const status = (data.status as string) ?? "active";
+
+  const transcriptions = usage.transcriptions ?? 0;
+  const limit = limits.transcriptions ?? "∞";
+
+  const lines: string[] = [];
+  lines.push(`Status: ${status}`);
+  lines.push(`Plan: ${plan}`);
+  lines.push(`Usage: ${transcriptions} / ${limit} transcriptions (this ${period})`);
+
+  if (periodEnd) {
+    const endDate = new Date(periodEnd);
+    if (!Number.isNaN(endDate.getTime())) {
+      const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / 86400000));
+      lines.push(`Renews: ${endDate.toLocaleDateString()} (${daysLeft} days)`);
+    }
+  }
+
+  return lines;
+}
+
 export function Settings({ onBack, setFooterHints }: SettingsProps): JSX.Element {
   const [config, setConfig] = useState<XevolConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +53,14 @@ export function Settings({ onBack, setFooterHints }: SettingsProps): JSX.Element
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [editingKey, setEditingKey] = useState<SettingKey | null>(null);
   const [editValue, setEditValue] = useState("");
+
+  const {
+    data: statusData,
+    loading: statusLoading,
+    error: statusError,
+  } = useApi<Record<string, unknown>>("/auth/cli/status");
+
+  const usageLines = useMemo(() => (statusData ? buildUsageLines(statusData) : []), [statusData]);
 
   useEffect(() => {
     if (!notice) return;
@@ -195,12 +231,12 @@ export function Settings({ onBack, setFooterHints }: SettingsProps): JSX.Element
       return;
     }
 
-    if (key.upArrow) {
+    if (key.upArrow || lower === "k") {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
     }
 
-    if (key.downArrow) {
+    if (key.downArrow || lower === "j") {
       setSelectedIndex((prev) => Math.min(settings.length - 1, prev + 1));
       return;
     }
@@ -223,6 +259,19 @@ export function Settings({ onBack, setFooterHints }: SettingsProps): JSX.Element
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       <Text color={colors.primary}>Settings</Text>
+
+      <Box flexDirection="column" marginTop={1} marginBottom={1}>
+        <Text color={colors.secondary} bold>Usage</Text>
+        {statusLoading && <Spinner label="Loading usage…" />}
+        {statusError && <Text color={colors.error}>{statusError}</Text>}
+        {!statusLoading && !statusError && statusData && (
+          <Box flexDirection="column">
+            {usageLines.map((line) => (
+              <Text key={line} color={colors.secondary}>{line}</Text>
+            ))}
+          </Box>
+        )}
+      </Box>
 
       {loading && (
         <Box marginTop={1}>
