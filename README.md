@@ -37,6 +37,12 @@ Or run without installing:
 npx xevol
 ```
 
+or install with brew:
+
+```bash
+brew install xevol/tap/xevol
+```
+
 Requires Node.js 18+.
 
 ## Quick Start
@@ -57,19 +63,19 @@ xevol view <id>
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `login` | Authenticate via device flow (opens browser) |
-| `logout` | Clear stored credentials |
-| `whoami` | Show current user, plan, and usage |
-| `add` | Add a YouTube URL for transcription |
-| `list` | List your transcriptions |
-| `view` | View a transcription summary or full transcript |
-| `analyze` | Generate AI analysis using a prompt |
-| `prompts` | List available analysis prompts |
-| `stream` | Stream analysis output via SSE |
-| `resume` | Resume a previous streaming session |
-| `config` | View or edit CLI configuration |
+| Command   | Description                                     |
+| --------- | ----------------------------------------------- |
+| `login`   | Authenticate via device flow (opens browser)    |
+| `logout`  | Clear stored credentials                        |
+| `whoami`  | Show current user, plan, and usage              |
+| `add`     | Add a YouTube URL for transcription             |
+| `list`    | List your transcriptions                        |
+| `view`    | View a transcription summary or full transcript |
+| `analyze` | Generate AI analysis using a prompt             |
+| `prompts` | List available analysis prompts                 |
+| `stream`  | Stream analysis output via SSE                  |
+| `resume`  | Resume a previous streaming session             |
+| `config`  | View or edit CLI configuration                  |
 
 All commands support `--json` for machine-readable output.
 
@@ -114,13 +120,13 @@ xevol add "https://youtube.com/watch?v=abc123" --analyze facts,advice
 xevol add "https://youtube.com/watch?v=abc123" --analyze facts --stream
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--no-wait` | Return immediately without waiting |
-| `--lang <code>` | Language code (e.g. `en`, `de`, `ja`) |
+| Flag                  | Description                                           |
+| --------------------- | ----------------------------------------------------- |
+| `--no-wait`           | Return immediately without waiting                    |
+| `--lang <code>`       | Language code (e.g. `en`, `de`, `ja`)                 |
 | `--analyze <prompts>` | Comma-separated prompt IDs to run after transcription |
-| `--stream` | Stream analysis output via SSE |
-| `--json` | JSON output |
+| `--stream`            | Stream analysis output via SSE                        |
+| `--json`              | JSON output                                           |
 
 ### `xevol list`
 
@@ -141,13 +147,13 @@ xevol list --json
 xevol list --csv
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--page <n>` | Page number |
-| `--limit <n>` | Results per page |
+| Flag           | Description      |
+| -------------- | ---------------- |
+| `--page <n>`   | Page number      |
+| `--limit <n>`  | Results per page |
 | `--status <s>` | Filter by status |
-| `--json` | JSON output |
-| `--csv` | CSV output |
+| `--json`       | JSON output      |
+| `--csv`        | CSV output       |
 
 ### `xevol view`
 
@@ -167,11 +173,11 @@ xevol view abc123def45 --clean
 xevol view abc123def45 --json
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--raw` | Print the full transcript text |
-| `--clean` | Use cleaned/processed content |
-| `--json` | JSON output |
+| Flag      | Description                    |
+| --------- | ------------------------------ |
+| `--raw`   | Print the full transcript text |
+| `--clean` | Use cleaned/processed content  |
+| `--json`  | JSON output                    |
 
 ### `xevol analyze`
 
@@ -188,11 +194,11 @@ xevol analyze abc123def45 --prompt facts --lang de
 xevol analyze abc123def45 --prompt facts --json
 ```
 
-| Flag | Description |
-|------|-------------|
+| Flag            | Description                       |
+| --------------- | --------------------------------- |
 | `--prompt <id>` | Prompt to use (default: `review`) |
-| `--lang <code>` | Output language |
-| `--json` | JSON output |
+| `--lang <code>` | Output language                   |
+| `--json`        | JSON output                       |
 
 Use `xevol prompts` to see all available prompts.
 
@@ -241,12 +247,12 @@ xevol config set default.limit 50
 
 Available config keys:
 
-| Key | Description |
-|-----|-------------|
-| `apiUrl` | Base API URL |
-| `default.lang` | Default output language |
+| Key             | Description                  |
+| --------------- | ---------------------------- |
+| `apiUrl`        | Base API URL                 |
+| `default.lang`  | Default output language      |
 | `default.limit` | Default page size for `list` |
-| `api.timeout` | API request timeout (ms) |
+| `api.timeout`   | API request timeout (ms)     |
 
 ## Output Formats
 
@@ -327,13 +333,13 @@ xevol list --csv > my-transcriptions.csv
 
 ## Global Options
 
-| Flag | Description |
-|------|-------------|
+| Flag              | Description                              |
+| ----------------- | ---------------------------------------- |
 | `--token <token>` | Override auth token for a single command |
-| `--no-color` | Disable colored output |
-| `--json` | Machine-readable JSON output |
-| `-V, --version` | Print version |
-| `-h, --help` | Show help |
+| `--no-color`      | Disable colored output                   |
+| `--json`          | Machine-readable JSON output             |
+| `-V, --version`   | Print version                            |
+| `-h, --help`      | Show help                                |
 
 ## Links
 
