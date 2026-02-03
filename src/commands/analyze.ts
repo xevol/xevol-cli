@@ -3,12 +3,14 @@ import chalk from "chalk";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { divider, printJson, startSpinner } from "../lib/output";
+import { streamSpikeToTerminal } from "../commands/stream";
 
 interface SpikesOptions {
   generate?: boolean;
   prompt?: string;
   lang?: string;
   json?: boolean;
+  stream?: boolean;
 }
 
 function extractResults(response: Record<string, unknown>): Record<string, unknown>[] {
@@ -85,6 +87,7 @@ export function registerAnalyzeCommand(program: Command): void {
     .option("--prompt <id>", "Prompt ID for generation")
     .option("--lang <code>", "Output language", "en")
     .option("--json", "Raw JSON output")
+    .option("--no-stream", "Disable live streaming (use polling instead)")
     .addHelpText('after', `
 Examples:
   $ xevol analyze abc123
@@ -110,8 +113,29 @@ Examples:
         let response = await fetchAnalysis(id, token, apiUrl, promptId, lang);
         let results = extractResults(response);
 
-        // If we got a spikeId but no content, the analysis is being generated — poll for it
-        if (results.length === 0 && (response.spikeId as string | undefined)) {
+        // If we got a spikeId but no content, the analysis is being generated
+        const spikeId = response.spikeId as string | undefined;
+        const useStreaming = options.stream !== false && !options.json;
+
+        if (results.length === 0 && spikeId) {
+          if (useStreaming) {
+            // Print title/header before streaming
+            const title =
+              (response.title as string | undefined) ??
+              (response.transcriptionTitle as string | undefined) ??
+              id;
+
+            console.log(chalk.bold(`Analysis for "${title}"`));
+            console.log(divider());
+
+            const result = await streamSpikeToTerminal(spikeId, token, apiUrl);
+            if (!result.content) {
+              console.log("No analysis content available.");
+            }
+            return;
+          }
+
+          // Polling fallback (--no-stream or --json)
           const finalResponse = await waitForAnalysis(id, token, apiUrl, promptId, lang);
           if (!finalResponse) {
             process.exitCode = 1;
