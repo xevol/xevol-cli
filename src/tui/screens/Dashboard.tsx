@@ -243,12 +243,6 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
-      {accountLine ? (
-        <Box marginBottom={1}>
-          <Text color={colors.secondary}>{accountLine}</Text>
-        </Box>
-      ) : null}
-
       {statusLoading && (
         <Box marginBottom={1}>
           <Spinner label="Loading account…" />
