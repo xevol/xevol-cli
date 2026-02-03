@@ -701,7 +701,7 @@ export function TranscriptionList({
   });
 
   const listPanel = (
-    <Box flexDirection="column" paddingX={1} paddingY={1}>
+    <Box flexDirection="column" paddingX={1} paddingY={1} height={terminal.rows - 2} overflow="hidden">
       {searchActive && (
         <Box flexDirection="column" marginBottom={1}>
           <Box>

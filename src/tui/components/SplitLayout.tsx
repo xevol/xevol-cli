@@ -22,14 +22,14 @@ export function SplitLayout({
   const isWide = terminal.columns >= splitAt;
 
   if (!isWide) {
-    return <Box flexDirection="column" flexGrow={1}>{left}</Box>;
+    return <Box flexDirection="column" flexGrow={1} height={terminal.rows} overflow="hidden">{left}</Box>;
   }
 
   const leftWidth = Math.floor(terminal.columns * 0.4);
   const rightWidth = terminal.columns - leftWidth - 1; // 1 for separator
 
   return (
-    <Box flexDirection="row" flexGrow={1}>
+    <Box flexDirection="row" flexGrow={1} height={terminal.rows} overflow="hidden">
       <Box flexDirection="column" width={leftWidth}>
         {left}
       </Box>
