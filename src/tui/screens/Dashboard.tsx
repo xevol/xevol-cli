@@ -8,6 +8,10 @@ import { formatTimeAgo } from "../utils/time";
 import type { NavigationState } from "../hooks/useNavigation";
 import type { Hint } from "../components/Footer";
 
+// Module-level cache so navigating away and back doesn't re-fetch
+let _cachedStatus: Record<string, unknown> | null = null;
+let _cachedRecent: Record<string, unknown> | null = null;
+
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
@@ -28,7 +32,7 @@ const MENU_ITEMS: Array<{ label: string; value: MenuValue }> = [
   { label: "📋 Transcriptions", value: "transcriptions" },
   { label: "📊 Usage", value: "usage" },
   { label: "🏢 Workspaces", value: "workspaces" },
-  { label: "⚙️  Settings", value: "settings" },
+  { label: "🔧 Settings", value: "settings" },
   { label: "❓ Help", value: "help" },
   { label: "🚪 Quit", value: "quit" },
 ];
@@ -90,15 +94,15 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const {
-    data: statusData,
-    loading: statusLoading,
+    data: rawStatusData,
+    loading: rawStatusLoading,
     error: statusError,
     refresh: refreshStatus,
   } = useApi<Record<string, unknown>>("/auth/cli/status");
 
   const {
-    data: recentData,
-    loading: recentLoading,
+    data: rawRecentData,
+    loading: rawRecentLoading,
     error: recentError,
     refresh: refreshRecent,
   } = useApi<Record<string, unknown>>(
@@ -108,6 +112,22 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
     },
     [],
   );
+
+  // Update cache when fresh data arrives
+  const statusData = rawStatusData ?? _cachedStatus;
+  const recentData = rawRecentData ?? _cachedRecent;
+
+  useEffect(() => {
+    if (rawStatusData) _cachedStatus = rawStatusData;
+  }, [rawStatusData]);
+
+  useEffect(() => {
+    if (rawRecentData) _cachedRecent = rawRecentData;
+  }, [rawRecentData]);
+
+  // Suppress loading indicator when we have cached data (no flash on re-visit)
+  const statusLoading = rawStatusLoading && !_cachedStatus;
+  const recentLoading = rawRecentLoading && !_cachedRecent;
 
   useEffect(() => {
     const timer = setInterval(() => {

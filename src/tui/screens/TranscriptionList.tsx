@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { promises as fs } from "fs";
@@ -115,14 +115,30 @@ export function TranscriptionList({
   const searchQuery = searchValue.trim();
 
   const { page, limit, total, totalPages, setPagination, nextPage, prevPage } = usePagination(1, 20);
+  const prevDataRef = useRef<Record<string, unknown> | null>(null);
+  const lastPageRef = useRef(page);
 
-  const { data, loading, error, refresh } = useApi<Record<string, unknown>>(
+  const { data: rawData, loading, error, refresh } = useApi<Record<string, unknown>>(
     "/v1/transcriptions",
     {
       query: { page, limit, status, sort, q: searchQuery || undefined },
     },
     [page, limit, status, sort, searchQuery],
   );
+
+  // Keep previous data visible while loading new page (prevents flash/blank)
+  const data = rawData ?? prevDataRef.current;
+  useEffect(() => {
+    if (rawData) prevDataRef.current = rawData;
+  }, [rawData]);
+
+  // Reset cursor to top on page change
+  useEffect(() => {
+    if (page !== lastPageRef.current) {
+      setSelectedIndex(0);
+      lastPageRef.current = page;
+    }
+  }, [page]);
 
   useEffect(() => {
     let mounted = true;
@@ -205,7 +221,7 @@ export function TranscriptionList({
     (isDeleting || isBatchDeleting || isBatchExporting ? 1 : 0) +
     (notice ? 1 : 0) +
     (error ? 1 : 0) +
-    (loading ? 1 : 0);
+    (loading && !data ? 1 : 0);
   const itemHeight = 3;
   const listHeight = Math.max(1, terminal.rows - reservedRows);
   const itemsPerPage = Math.max(1, Math.floor(listHeight / itemHeight));
@@ -512,18 +528,18 @@ export function TranscriptionList({
         </Box>
       )}
 
-      {loading && <Spinner label="Fetching transcriptions…" />}
+      {loading && !data && <Spinner label="Fetching transcriptions…" />}
       {error && (
         <Text color={colors.error}>
           {error} (press r to retry)
         </Text>
       )}
 
-      {!loading && !error && listItems.length === 0 && (
+      {!loading && !error && listItems.length === 0 && !prevDataRef.current && (
         <Text color={colors.secondary}>No transcriptions found.</Text>
       )}
 
-      {!loading && !error && listItems.length > 0 && (
+      {listItems.length > 0 && (
         <Box flexDirection="column">
           {visibleItems.map((item, index) => {
             const absoluteIndex = windowStart + index;
