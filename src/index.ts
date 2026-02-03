@@ -11,9 +11,26 @@ import { registerPromptsCommand } from "./commands/prompts";
 import { registerStreamCommand } from "./commands/stream";
 import { registerResumeCommand } from "./commands/resume";
 import { registerConfigCommand } from "./commands/config";
+import { printHeader } from "./lib/header";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
+
+const SKIP_HEADER_COMMANDS = new Set(["login", "config"]);
+
+function shouldShowHeader(): boolean {
+  const args = process.argv.slice(2);
+  // Skip for help, version, or json flags
+  if (args.some((a) => a === "--help" || a === "-h" || a === "--version" || a === "-V" || a === "--json")) {
+    return false;
+  }
+  // Skip for specific commands
+  const cmd = args.find((a) => !a.startsWith("-"));
+  if (cmd && SKIP_HEADER_COMMANDS.has(cmd)) {
+    return false;
+  }
+  return true;
+}
 
 const program = new Command();
 
@@ -23,10 +40,13 @@ program
   .version(version)
   .option("--token <token>", "Override auth token")
   .option("--no-color", "Disable colored output")
-  .hook("preAction", () => {
+  .hook("preAction", async () => {
     const opts = program.opts();
     if (opts.color === false) {
       chalk.level = 0;
+    }
+    if (shouldShowHeader()) {
+      await printHeader(version);
     }
   });
 
@@ -40,4 +60,11 @@ registerStreamCommand(program);
 registerResumeCommand(program);
 registerConfigCommand(program);
 
-await program.parseAsync(process.argv);
+// Show header + help when invoked with no arguments
+const args = process.argv.slice(2);
+if (args.length === 0) {
+  await printHeader(version);
+  program.help();
+} else {
+  await program.parseAsync(process.argv);
+}
