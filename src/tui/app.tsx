@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, Text, render, useApp, useInput, useStdout } from "ink";
+import { Box, Text, render, useApp, useInput } from "ink";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { StatsBar } from "./components/StatsBar";
@@ -14,6 +14,7 @@ import { Settings } from "./screens/Settings";
 import { AddUrl } from "./screens/AddUrl";
 import { InputProvider, useInputLock } from "./context/InputContext";
 import { LayoutProvider, useLayout } from "./context/LayoutContext";
+import { useTerminal } from "./hooks/useTerminal";
 import { apiFetch } from "../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { checkForUpdate } from "../lib/update-check";
@@ -24,7 +25,6 @@ interface AppProps {
 
 function AppInner({ version }: AppProps): JSX.Element {
   const { exit } = useApp();
-  const { stdout } = useStdout();
   const { currentScreen, params, push, pop, reset } = useNavigation("dashboard");
   const { footerHints, footerStatus, setFooterHints, setFooterStatus } = useLayout();
   const { isInputActive } = useInputLock();
@@ -96,13 +96,7 @@ function AppInner({ version }: AppProps): JSX.Element {
 
   const listParams = params as { status?: string; sort?: string };
   const detailId = typeof params.id === "string" ? params.id : "";
-  const terminal = useMemo(
-    () => ({
-      columns: stdout.columns ?? 80,
-      rows: stdout.rows ?? 24,
-    }),
-    [stdout.columns, stdout.rows],
-  );
+  const terminal = useTerminal(100);
 
   // Terminal min-size guard
   if (terminal.columns < 60 || terminal.rows < 15) {
