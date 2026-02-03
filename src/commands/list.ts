@@ -4,6 +4,7 @@ import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { formatDuration, formatDurationCompact, printJson, renderCards, type CardItem } from "../lib/output";
 import { pickValueOrDash } from "../lib/utils";
+import { cacheKey, getCached, setCache, TTL } from "../lib/cache";
 
 function formatCreatedAt(raw: string | undefined): string {
   if (!raw) return "—";
@@ -41,6 +42,7 @@ interface ListOptions {
   status?: string;
   sort?: string;
   search?: string;
+  cache?: boolean;
 }
 
 function normalizeListResponse(data: Record<string, unknown>) {
@@ -88,6 +90,7 @@ export function registerListCommand(program: Command): void {
     .option("--status <status>", "Filter by status (complete, pending, error)")
     .option("--sort <field>", "Sort field (e.g. createdAt:desc, title:asc)")
     .option("--search <query>", "Search by title")
+    .option("--no-cache", "Bypass cache and fetch fresh data")
     .addHelpText('after', `
 Examples:
   $ xevol list
@@ -108,11 +111,28 @@ Examples:
         }
 
         const apiUrl = resolveApiUrl(config);
+        const queryParams = { page: options.page, limit: options.limit, status: options.status, sort: options.sort, q: options.search };
+        const key = cacheKey("/v1/transcriptions", queryParams as Record<string, unknown>);
+
+        // Check cache first (unless --no-cache)
+        if (options.cache !== false) {
+          const cached = await getCached<Record<string, unknown>>(key);
+          if (cached && !cached.stale) {
+            // Use cached data directly
+            const response = cached.data;
+            if (options.json) { printJson(response); return; }
+            // Fall through to rendering with cached data
+          }
+        }
+
         const response = (await apiFetch("/v1/transcriptions", {
-          query: { page: options.page, limit: options.limit, status: options.status, sort: options.sort, q: options.search },
+          query: queryParams,
           token,
           apiUrl,
         })) as Record<string, unknown>;
+
+        // Store in cache
+        void setCache(key, response, TTL.LIST);
 
         if (options.json) {
           printJson(response);

@@ -4,11 +4,13 @@ import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { divider, formatDuration, printJson } from "../lib/output";
 import { pickValue } from "../lib/utils";
+import { buildMarkdownFromAnalysis } from "../tui/utils/markdown";
 
 interface ViewOptions {
   raw?: boolean;
   clean?: boolean;
   json?: boolean;
+  md?: boolean;
 }
 
 function getAnalysisPayload(response: Record<string, unknown>): Record<string, unknown> {
@@ -29,6 +31,7 @@ export function registerViewCommand(program: Command): void {
     .option("--raw", "Print the full transcript")
     .option("--clean", "Use cleanContent instead of content")
     .option("--json", "Raw JSON output")
+    .option("--md", "Output as markdown (pipe-friendly)")
     .action(async (id: string, options: ViewOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -59,6 +62,17 @@ export function registerViewCommand(program: Command): void {
         }
 
         const data = getAnalysisPayload(response);
+
+        if (options.md) {
+          const md = buildMarkdownFromAnalysis(data);
+          if (md.trim()) {
+            process.stdout.write(md);
+          } else {
+            console.error("No content available for markdown export.");
+            process.exitCode = 1;
+          }
+          return;
+        }
         const title = pickValue(data, ["title", "videoTitle", "name"]) ?? "Untitled";
         const channel = pickValue(data, ["channel", "channelTitle", "author"]) ?? "Unknown";
         const channelHandle = pickValue(data, ["channelHandle", "handle", "channelTag"]);

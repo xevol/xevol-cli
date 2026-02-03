@@ -157,5 +157,16 @@ export function divider(width?: number): string {
 }
 
 export function startSpinner(text: string) {
+  if (!process.stdout.isTTY) {
+    // When piped, write progress to stderr instead
+    process.stderr.write(`${text}\n`);
+    return {
+      text,
+      succeed(msg?: string) { if (msg) process.stderr.write(`✔ ${msg}\n`); },
+      fail(msg?: string) { if (msg) process.stderr.write(`✖ ${msg}\n`); },
+      stop() {},
+      start() { return this; },
+    } as ReturnType<typeof ora>;
+  }
   return ora({ text, spinner: "dots" }).start();
 }

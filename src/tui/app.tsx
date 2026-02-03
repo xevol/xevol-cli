@@ -13,6 +13,7 @@ import { Settings } from "./screens/Settings";
 import { AddUrl } from "./screens/AddUrl";
 import { apiFetch } from "../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { checkForUpdate } from "../lib/update-check";
 
 interface AppProps {
   version: string;
@@ -26,6 +27,14 @@ export function App({ version }: AppProps): JSX.Element {
   const [footerStatus, setFooterStatus] = useState<string | undefined>(undefined);
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [userPlan, setUserPlan] = useState<string | undefined>(undefined);
+  const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
+
+  // Check for updates (non-blocking, once per day)
+  useEffect(() => {
+    void checkForUpdate(version).then((info) => {
+      if (info) setUpdateInfo(info);
+    });
+  }, [version]);
 
   // Fetch user info once on mount
   useEffect(() => {
@@ -163,6 +172,13 @@ export function App({ version }: AppProps): JSX.Element {
         </Box>
       </Box>
       <Footer hints={footerHints} status={footerStatus} />
+      {updateInfo && (
+        <Box paddingX={1}>
+          <Text color="yellow" dimColor>
+            Update available: {updateInfo.current} → {updateInfo.latest} (npm i -g xevol)
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }

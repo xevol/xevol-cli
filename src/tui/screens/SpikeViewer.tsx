@@ -6,6 +6,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { colors } from "../theme";
 import { pickValue } from "../../lib/utils";
 import { wrapText } from "../utils/wrapText";
+import { renderMarkdownLines } from "../utils/renderMarkdown";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
 import type { Hint } from "../components/Footer";
@@ -218,7 +219,7 @@ export function SpikeViewer({ id, onBack, terminal, setFooterHints }: SpikeViewe
   const contentWidth = Math.max(20, terminal.columns - 4);
   const spikeContent = activeSpike ? (streamContent || getSpikeContent(activeSpike)) : "";
   const contentLines = useMemo(
-    () => wrapText(spikeContent || "No spike content available.", contentWidth),
+    () => renderMarkdownLines(spikeContent || "No spike content available.", contentWidth),
     [spikeContent, contentWidth],
   );
 

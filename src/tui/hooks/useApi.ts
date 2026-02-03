@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DependencyList } from "react";
 import { apiFetch, type ApiRequestOptions } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
+import { cacheKey, getCached, inferTTL, setCache } from "../../lib/cache";
 
 interface UseApiResult<T> {
   data: T | null;
@@ -33,8 +34,25 @@ export function useApi<T>(
   }, []);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    const key = cacheKey(path, optionsRef.current.query as Record<string, unknown> | undefined);
+    const ttl = inferTTL(path);
+
+    // Check cache first — return cached data immediately (stale-while-revalidate)
+    const cached = await getCached<T>(key);
+    if (cached) {
+      if (mountedRef.current) {
+        setData(cached.data);
+        // If not stale, don't show loading spinner
+        if (!cached.stale) {
+          setLoading(false);
+        }
+      }
+    } else {
+      setLoading(true);
+    }
+
     setError(null);
+
     try {
       const config = (await readConfig()) ?? {};
       const { token, expired } = resolveToken(config);
@@ -58,9 +76,14 @@ export function useApi<T>(
       if (mountedRef.current) {
         setData(response);
       }
+      // Update cache with fresh data
+      void setCache(key, response, ttl);
     } catch (err) {
       if (mountedRef.current) {
-        setError((err as Error).message);
+        // Only show error if we have no cached data to fall back on
+        if (!cached) {
+          setError((err as Error).message);
+        }
       }
     } finally {
       if (mountedRef.current) {
