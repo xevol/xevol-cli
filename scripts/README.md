@@ -1,6 +1,8 @@
 # Build & Release Scripts
 
-Simple shell scripts for building and releasing xevol-cli across multiple platforms.
+Shell scripts for **manual** building and releasing of xevol-cli across multiple platforms.
+
+> **Note**: These scripts are also used by the GitHub Actions workflow (`.github/workflows/release.yml`) for automated releases on tags.
 
 ## Scripts
 
@@ -48,6 +50,18 @@ Creates a GitHub release and updates the Homebrew formula.
 
 ## Full Release Process
 
+### Option 1: Automated (via GitHub Actions)
+```bash
+# 1. Update version in package.json
+npm version 0.11.17
+
+# 2. Push the tag (triggers CI)
+git push origin v0.11.17
+
+# Done! GitHub Actions handles the rest
+```
+
+### Option 2: Manual (via script)
 ```bash
 # 1. Update version in package.json
 npm version 0.11.17
@@ -60,7 +74,7 @@ git push
 # 3. Run the release script
 ./scripts/release.sh 0.11.17
 
-# 4. Done! Users can now install with:
+# Done! Users can now install with:
 brew install xevol/tap/xevol
 ```
 

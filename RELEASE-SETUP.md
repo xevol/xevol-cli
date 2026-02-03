@@ -1,26 +1,34 @@
 # Multi-Platform Release Setup ✅
 
-Simple shell scripts for building and releasing xevol-cli across Linux and macOS platforms.
+Two ways to build and release xevol-cli across Linux and macOS platforms:
+1. **Manual** - Shell scripts for local builds and releases
+2. **Automated** - GitHub Actions triggered on version tags
 
 ## Quick Start
 
-### Build Only
-```bash
-./scripts/build.sh
-```
-
-### Full Release
+### Option 1: Automated Release (Recommended)
 ```bash
 # Update version
 npm version 0.11.17
 
-# Create release
+# Push tag to trigger CI
+git push origin v0.11.17
+```
+GitHub Actions automatically builds, releases, and updates Homebrew.
+
+### Option 2: Manual Release
+```bash
+# Build locally
+./scripts/build.sh
+
+# Create release manually
 ./scripts/release.sh 0.11.17
 ```
 
 ## What Was Set Up
 
 ### 1. Build Script (`scripts/build.sh`)
+For local/manual builds:
 - Builds 3 platform binaries using Bun cross-compilation:
   - `xevol-linux-x64` (Linux x64)
   - `xevol-darwin-x64` (macOS Intel)
@@ -30,6 +38,7 @@ npm version 0.11.17
 - Computes SHA256 hashes for verification
 
 ### 2. Release Script (`scripts/release.sh`)
+For manual releases:
 - Takes version number as argument (e.g., `0.11.17`)
 - Runs build script automatically
 - Creates GitHub release with tag `v{version}`
@@ -40,7 +49,15 @@ npm version 0.11.17
   - Updates SHA256 hashes for all platforms
 - Commits and pushes formula changes
 
-### 3. Multi-Platform Homebrew Formula
+### 3. GitHub Actions Workflow (`.github/workflows/release.yml`)
+For automated releases:
+- Triggers on version tags matching `v*` (e.g., `v0.11.17`)
+- Runs `scripts/build.sh` to build all 3 platforms
+- Creates GitHub release with all tarballs
+- Updates Homebrew formula automatically
+- No manual intervention needed
+
+### 4. Multi-Platform Homebrew Formula
 Already set up in `xevol/homebrew-tap/Formula/xevol.rb`:
 - `on_macos` block with ARM64/Intel detection
 - `on_linux` block for Linux x64
@@ -48,6 +65,24 @@ Already set up in `xevol/homebrew-tap/Formula/xevol.rb`:
 
 ## Full Release Process
 
+### Automated (Recommended)
+```bash
+# 1. Update version in package.json
+npm version 0.11.17
+
+# 2. Push the version tag
+git push origin v0.11.17
+```
+
+GitHub Actions automatically:
+- ✅ Builds all 3 platform binaries
+- ✅ Creates GitHub release with tarballs
+- ✅ Updates Homebrew formula
+- ✅ Computes and includes SHA256 checksums
+
+Watch the workflow: https://github.com/xevol/xevol-cli/actions
+
+### Manual (Alternative)
 ```bash
 # 1. Update version in package.json
 npm version 0.11.17
@@ -57,15 +92,11 @@ git add package.json
 git commit -m "Bump version to 0.11.17"
 git push
 
-# 3. Create release (builds + publishes + updates Homebrew)
+# 3. Create release manually
 ./scripts/release.sh 0.11.17
 ```
 
-That's it! The release script handles everything:
-- ✅ Builds all 3 platform binaries
-- ✅ Creates GitHub release with tarballs
-- ✅ Updates Homebrew formula
-- ✅ Computes and includes SHA256 checksums
+The release script handles everything locally.
 
 ## Installation (End Users)
 
