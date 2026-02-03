@@ -1,7 +1,7 @@
 {
   "name": "xevol",
   "version": "0.2.3",
-  "description": "Xevol is an info manager to consume, remix, make, publish, and offer systems, products, and workflows.",
+  "description": "Xevol is a tool to consume, remix, make, publish, and offer systems, products, and workflows.",
   "type": "module",
   "bin": {
     "xvl": "./dist/index.js",
