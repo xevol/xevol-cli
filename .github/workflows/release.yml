@@ -156,4 +156,4 @@ jobs:
           # Commit and push
           git add Formula/xevol.rb
           git commit -m "Update xevol to v${VERSION}"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/xevol/homebrew-tap.git main
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/xevol/homebrew-tap.git master
