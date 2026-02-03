@@ -316,19 +316,24 @@ export function TranscriptionList({
       return;
     }
 
-    // Check cache first
+    // Check cache first — instant render, no loading state
     const cached = previewCacheRef.current.get(selectedItem.id);
     if (cached) {
       setPreviewData(cached);
+      setPreviewLoading(false);
       return;
     }
+
+    // Clear stale data immediately — don't show old content
+    setPreviewData(null);
+    setPreviewLoading(true);
 
     // Abort previous in-flight request
     previewAbortRef.current?.abort();
     const controller = new AbortController();
     previewAbortRef.current = controller;
 
-    setPreviewLoading(true);
+    // Short debounce — cursor throttle (50ms) already handles rapid movement
     previewTimerRef.current = setTimeout(() => {
       void (async () => {
         try {
@@ -362,7 +367,7 @@ export function TranscriptionList({
           }
         }
       })();
-    }, 600);
+    }, 150);
 
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
@@ -805,10 +810,7 @@ export function TranscriptionList({
     <Box flexDirection="column" paddingX={1} paddingY={1} height={previewHeight} overflow="hidden">
       {previewData ? (
         <Box flexDirection="column">
-          <Box flexDirection="row">
-            <Text bold color={previewLoading ? colors.secondary : colors.primary}>{previewData.title}</Text>
-            {previewLoading && <Text color={colors.secondary}> …</Text>}
-          </Box>
+          <Text bold color={colors.primary}>{previewData.title}</Text>
           <Box marginTop={1} flexDirection="row">
             <StatusBadge status={previewData.status} />
             <Text color={colors.secondary}> {previewData.status}</Text>
@@ -820,7 +822,7 @@ export function TranscriptionList({
           ) : null}
         </Box>
       ) : previewLoading ? (
-        <Spinner label="Loading preview…" />
+        <Text color={colors.secondary} dimColor>loading…</Text>
       ) : (
         <Text color={colors.secondary}>Select a transcription to preview</Text>
       )}
