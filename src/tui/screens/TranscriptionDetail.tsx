@@ -218,7 +218,7 @@ export function TranscriptionDetail({
   );
 
   const spikeContentLines = useMemo(
-    () => wrapText(spikeContent || "No spike content available.", contentWidth),
+    () => wrapText(spikeContent || "", contentWidth),
     [spikeContent, contentWidth],
   );
 
@@ -613,25 +613,33 @@ export function TranscriptionDetail({
             <Box flexDirection="column">
               <Text color={colors.primary}>
                 {activePromptName ?? "Spike"}
+                {creatingSpike ? " · creating…" : streaming ? " · streaming…" : ""}
               </Text>
-              {creatingSpike && (
-                <Box marginTop={1}>
-                  <Spinner label="Creating spike…" />
-                </Box>
-              )}
-              {streaming && (
-                <Box marginTop={1}>
-                  <Text color={colors.secondary}>streaming…</Text>
-                </Box>
-              )}
               {streamError && (
                 <Box marginTop={1}>
-                  <Text color={colors.error}>{streamError}</Text>
+                  <Text color={colors.error}>{streamError} (press r to retry)</Text>
                 </Box>
               )}
-              <Box marginTop={1}>
-                <Text>{visibleLines.join("\n")}</Text>
-              </Box>
+              {creatingSpike && !spikeContent && (
+                <Box marginTop={1}>
+                  <Spinner label="Generating spike…" />
+                </Box>
+              )}
+              {streaming && !spikeContent && (
+                <Box marginTop={1}>
+                  <Spinner label="Waiting for content…" />
+                </Box>
+              )}
+              {!creatingSpike && !streaming && !streamError && !spikeContent && (
+                <Box marginTop={1}>
+                  <Text color={colors.secondary}>No content returned.</Text>
+                </Box>
+              )}
+              {spikeContent ? (
+                <Box marginTop={1}>
+                  <Text>{visibleLines.join("\n")}</Text>
+                </Box>
+              ) : null}
             </Box>
           )}
         </Box>
