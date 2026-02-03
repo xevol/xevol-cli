@@ -488,6 +488,16 @@ export function TranscriptionList({
       return;
     }
 
+    if (input === "g") {
+      setSelectedIndex(0);
+      return;
+    }
+
+    if (input === "G") {
+      setSelectedIndex(Math.max(0, listItems.length - 1));
+      return;
+    }
+
     if (lower === "r") {
       void refresh();
     }

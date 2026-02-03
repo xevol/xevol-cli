@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, render, useApp, useInput, useStdout } from "ink";
+import { Box, Text, render, useApp, useInput, useStdout } from "ink";
 import { Header } from "./components/Header";
 import { Footer, type Hint } from "./components/Footer";
 import { useNavigation } from "./hooks/useNavigation";
@@ -8,7 +8,7 @@ import { Help } from "./screens/Help";
 import { Dashboard } from "./screens/Dashboard";
 import { TranscriptionDetail } from "./screens/TranscriptionDetail";
 import { SpikeViewer } from "./screens/SpikeViewer";
-import { Placeholder } from "./screens/Placeholder";
+import { Workspaces } from "./screens/Workspaces";
 import { Settings } from "./screens/Settings";
 import { AddUrl } from "./screens/AddUrl";
 import { apiFetch } from "../lib/api";
@@ -22,7 +22,6 @@ export function App({ version }: AppProps): JSX.Element {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { currentScreen, params, push, pop, reset } = useNavigation("dashboard");
-  const backToDashboard = useMemo(() => () => reset("dashboard"), [reset]);
   const [footerHints, setFooterHints] = useState<Hint[]>([]);
   const [footerStatus, setFooterStatus] = useState<string | undefined>(undefined);
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
@@ -81,6 +80,17 @@ export function App({ version }: AppProps): JSX.Element {
     [stdout.columns, stdout.rows],
   );
 
+  // Terminal min-size guard
+  if (terminal.columns < 60 || terminal.rows < 15) {
+    return (
+      <Box>
+        <Text color="yellow">
+          Terminal too small ({terminal.columns}×{terminal.rows}). Need at least 60×15.
+        </Text>
+      </Box>
+    );
+  }
+
   const navigation = useMemo(
     () => ({
       push,
@@ -99,13 +109,13 @@ export function App({ version }: AppProps): JSX.Element {
       />
     );
   } else if (currentScreen === "help") {
-    content = <Help onClose={backToDashboard} setFooterHints={setFooterHints} />;
+    content = <Help onClose={pop} setFooterHints={setFooterHints} />;
   } else if (currentScreen === "detail") {
     content = (
       <TranscriptionDetail
         id={detailId}
         navigation={navigation}
-        onBack={backToDashboard}
+        onBack={pop}
         terminal={terminal}
         setFooterHints={setFooterHints}
       />
@@ -114,19 +124,19 @@ export function App({ version }: AppProps): JSX.Element {
     content = (
       <SpikeViewer
         id={detailId}
-        onBack={backToDashboard}
+        onBack={pop}
         terminal={terminal}
         setFooterHints={setFooterHints}
       />
     );
   } else if (currentScreen === "workspaces") {
-    content = <Placeholder title="Workspaces" onBack={backToDashboard} setFooterHints={setFooterHints} />;
+    content = <Workspaces onBack={pop} setFooterHints={setFooterHints} />;
   } else if (currentScreen === "settings") {
-    content = <Settings onBack={backToDashboard} setFooterHints={setFooterHints} />;
+    content = <Settings onBack={pop} setFooterHints={setFooterHints} />;
   } else if (currentScreen === "add-url") {
     content = (
       <AddUrl
-        onBack={backToDashboard}
+        onBack={pop}
         terminal={terminal}
         setFooterHints={setFooterHints}
       />
@@ -136,7 +146,7 @@ export function App({ version }: AppProps): JSX.Element {
       <TranscriptionList
         params={listParams}
         navigation={navigation}
-        onBack={backToDashboard}
+        onBack={pop}
         terminal={terminal}
         setFooterHints={setFooterHints}
         setFooterStatus={setFooterStatus}

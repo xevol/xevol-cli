@@ -75,13 +75,21 @@ program
   .command("tui")
   .description("Launch the interactive TUI")
   .action(() => {
-    launchTUI(version);
+    if (!process.stdout.isTTY) {
+      program.help();
+    } else {
+      launchTUI(version);
+    }
   });
 
 // Show header + help when invoked with no arguments
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  launchTUI(version);
+  if (!process.stdout.isTTY) {
+    program.help();
+  } else {
+    launchTUI(version);
+  }
 } else {
   await program.parseAsync(process.argv);
 }

@@ -470,6 +470,14 @@ export function TranscriptionDetail({
         setScrollOffset((prev) => Math.min(maxOffset, prev + 1));
         return;
       }
+      if (input === "g") {
+        setScrollOffset(0);
+        return;
+      }
+      if (input === "G") {
+        setScrollOffset(maxOffset);
+        return;
+      }
       if (lower === "e") {
         void handleExport();
         return;
@@ -497,6 +505,16 @@ export function TranscriptionDetail({
           });
           return;
         }
+        if (input === "g") {
+          userScrolledRef.current = true;
+          setScrollOffset(0);
+          return;
+        }
+        if (input === "G") {
+          userScrolledRef.current = false;
+          setScrollOffset(maxOffset);
+          return;
+        }
       } else {
         // Prompt list navigation
         if (key.upArrow || lower === "k") {
@@ -505,6 +523,14 @@ export function TranscriptionDetail({
         }
         if (key.downArrow || lower === "j") {
           setPromptSelectedIndex((prev) => Math.min(prompts.length - 1, prev + 1));
+          return;
+        }
+        if (input === "g") {
+          setPromptSelectedIndex(0);
+          return;
+        }
+        if (input === "G") {
+          setPromptSelectedIndex(Math.max(0, prompts.length - 1));
           return;
         }
         if (key.return && prompts[promptSelectedIndex] && !creatingSpike && !streaming) {
