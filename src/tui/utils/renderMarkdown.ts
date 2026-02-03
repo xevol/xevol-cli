@@ -1,11 +1,53 @@
 import chalk from "chalk";
 
+/** Module-level ANSI stripping regex (#8) */
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+
 /**
- * Convert markdown text to styled terminal lines using ANSI codes.
- * Handles: headers, bold, italic, inline code, code blocks, blockquotes, bullet lists.
+ * Strip ANSI escape codes from a string.
  */
-export function renderMarkdownLines(markdown: string, width: number): string[] {
+function stripAnsi(text: string): string {
+  ANSI_RE.lastIndex = 0;
+  return text.replace(ANSI_RE, "");
+}
+
+// ── LRU cache for parsed markdown structure (max 10 entries) ──
+
+interface ParseCacheEntry {
+  lines: string[];
+}
+
+const parseCache = new Map<string, ParseCacheEntry>();
+const PARSE_CACHE_MAX = 10;
+
+function parseCacheKey(markdown: string, width: number): string {
+  // Simple hash: length + first/last 100 chars + width
+  const prefix = markdown.slice(0, 100);
+  const suffix = markdown.slice(-100);
+  return `${markdown.length}:${width}:${prefix}:${suffix}`;
+}
+
+function parseCacheSet(key: string, lines: string[]): void {
+  if (parseCache.size >= PARSE_CACHE_MAX) {
+    // Evict oldest (first key)
+    const firstKey = parseCache.keys().next().value;
+    if (firstKey !== undefined) parseCache.delete(firstKey);
+  }
+  parseCache.set(key, { lines });
+}
+
+// ── Phase 1: Parse markdown structure (plain text, no ANSI) ──
+
+/**
+ * Parse markdown into plain-text lines (no ANSI formatting).
+ * Cached by content+width hash.
+ */
+export function parseMarkdownStructure(markdown: string, width: number): string[] {
   if (!markdown || width <= 0) return [];
+
+  const key = parseCacheKey(markdown, width);
+  const cached = parseCache.get(key);
+  if (cached) return cached.lines;
 
   const lines: string[] = [];
   const rawLines = markdown.split(/\r?\n/);
@@ -14,85 +56,163 @@ export function renderMarkdownLines(markdown: string, width: number): string[] {
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i];
 
-    // Code block toggle
     if (line.trimStart().startsWith("```")) {
       inCodeBlock = !inCodeBlock;
-      if (inCodeBlock) {
-        lines.push(chalk.dim("─".repeat(Math.min(width, 60))));
-      } else {
-        lines.push(chalk.dim("─".repeat(Math.min(width, 60))));
-      }
+      lines.push("───CODEBLOCK_SEPARATOR───");
       continue;
     }
 
     if (inCodeBlock) {
-      // Code block content — dim styling
-      for (const wrapped of wrapPlain(line, width)) {
-        lines.push(chalk.dim(wrapped));
+      for (const wrapped of wrapPlainText(line, width)) {
+        lines.push(`───CODE───${wrapped}`);
       }
       continue;
     }
 
-    // Headers
     const headerMatch = line.match(/^(#{1,6})\s+(.*)/);
     if (headerMatch) {
       const level = headerMatch[1].length;
-      const text = applyInlineFormatting(headerMatch[2]);
+      const text = stripInlineMarkdown(headerMatch[2]);
       const prefix = level <= 2 ? "" : "  ";
-      for (const wrapped of wrapPlain(text, width - prefix.length)) {
-        lines.push(prefix + chalk.bold.blueBright(wrapped));
+      for (const wrapped of wrapPlainText(text, width - prefix.length)) {
+        lines.push(`───H${level}───${prefix}${wrapped}`);
       }
       if (level <= 2) lines.push("");
       continue;
     }
 
-    // Blockquote
     if (line.trimStart().startsWith("> ")) {
-      const content = applyInlineFormatting(line.replace(/^\s*>\s?/, ""));
-      for (const wrapped of wrapPlain(content, width - 4)) {
-        lines.push(chalk.dim("│ ") + chalk.italic(wrapped));
+      const content = stripInlineMarkdown(line.replace(/^\s*>\s?/, ""));
+      for (const wrapped of wrapPlainText(content, width - 4)) {
+        lines.push(`───QUOTE───${wrapped}`);
       }
       continue;
     }
 
-    // Bullet list
     const bulletMatch = line.match(/^(\s*)[*\-+]\s+(.*)/);
     if (bulletMatch) {
       const indent = Math.min(bulletMatch[1].length, 8);
-      const content = applyInlineFormatting(bulletMatch[2]);
+      const content = stripInlineMarkdown(bulletMatch[2]);
       const prefix = " ".repeat(indent) + "• ";
-      for (const wrapped of wrapPlain(content, width - prefix.length)) {
-        lines.push(prefix + wrapped);
+      for (const wrapped of wrapPlainText(content, width - prefix.length)) {
+        lines.push(`───BULLET${indent}───${prefix}${wrapped}`);
       }
       continue;
     }
 
-    // Numbered list
     const numMatch = line.match(/^(\s*)\d+[.)]\s+(.*)/);
     if (numMatch) {
       const indent = Math.min(numMatch[1].length, 8);
-      const content = applyInlineFormatting(numMatch[2]);
+      const content = stripInlineMarkdown(numMatch[2]);
       const prefix = " ".repeat(indent) + "  ";
-      for (const wrapped of wrapPlain(content, width - prefix.length)) {
-        lines.push(prefix + wrapped);
+      for (const wrapped of wrapPlainText(content, width - prefix.length)) {
+        lines.push(`───NUM${indent}───${prefix}${wrapped}`);
       }
       continue;
     }
 
-    // Empty line
     if (!line.trim()) {
       lines.push("");
       continue;
     }
 
-    // Regular paragraph with inline formatting
-    const formatted = applyInlineFormatting(line);
-    for (const wrapped of wrapPlain(formatted, width)) {
-      lines.push(wrapped);
+    const text = stripInlineMarkdown(line);
+    for (const wrapped of wrapPlainText(text, width)) {
+      lines.push(`───PARA───${wrapped}`);
     }
   }
 
+  parseCacheSet(key, lines);
   return lines;
+}
+
+// ── Phase 2: Render visible window with ANSI formatting ──
+
+/**
+ * Apply ANSI formatting to a slice of parsed lines.
+ * Only formats the visible window for performance.
+ */
+export function renderMarkdownWindow(parsedLines: string[], start: number, count: number): string[] {
+  const end = Math.min(start + count, parsedLines.length);
+  const result: string[] = [];
+
+  for (let i = start; i < end; i++) {
+    const line = parsedLines[i];
+    result.push(formatParsedLine(line));
+  }
+
+  return result;
+}
+
+function formatParsedLine(line: string): string {
+  if (line === "") return "";
+
+  if (line === "───CODEBLOCK_SEPARATOR───") {
+    return chalk.dim("─".repeat(60));
+  }
+
+  if (line.startsWith("───CODE───")) {
+    return chalk.dim(line.slice(10));
+  }
+
+  const headerMatch = line.match(/^───H(\d)───(.*)/);
+  if (headerMatch) {
+    return chalk.bold.blueBright(headerMatch[2]);
+  }
+
+  if (line.startsWith("───QUOTE───")) {
+    return chalk.dim("│ ") + chalk.italic(line.slice(11));
+  }
+
+  if (line.match(/^───BULLET\d───/)) {
+    const content = line.replace(/^───BULLET\d───/, "");
+    return applyInlineFormatting(content);
+  }
+
+  if (line.match(/^───NUM\d───/)) {
+    const content = line.replace(/^───NUM\d───/, "");
+    return applyInlineFormatting(content);
+  }
+
+  if (line.startsWith("───PARA───")) {
+    return applyInlineFormatting(line.slice(10));
+  }
+
+  return line;
+}
+
+// ── Legacy API (kept for compatibility, delegates to two-phase) ──
+
+/**
+ * Convert markdown text to styled terminal lines using ANSI codes.
+ * Now delegates to two-phase approach internally.
+ */
+export function renderMarkdownLines(markdown: string, width: number): string[] {
+  if (!markdown || width <= 0) return [];
+
+  const parsed = parseMarkdownStructure(markdown, width);
+  return renderMarkdownWindow(parsed, 0, parsed.length);
+}
+
+// ── Helpers ──
+
+/**
+ * Strip inline markdown formatting markers (for plain text phase).
+ */
+function stripInlineMarkdown(text: string): string {
+  let result = text;
+  // Inline code
+  result = result.replace(/`([^`]+)`/g, "`$1`");
+  // Bold+italic
+  result = result.replace(/\*{3}([^*]+)\*{3}/g, "$1");
+  result = result.replace(/_{3}([^_]+)_{3}/g, "$1");
+  // Bold
+  result = result.replace(/\*{2}([^*]+)\*{2}/g, "$1");
+  result = result.replace(/_{2}([^_]+)_{2}/g, "$1");
+  // Italic
+  result = result.replace(/(?<!\w)\*([^*]+)\*(?!\w)/g, "$1");
+  result = result.replace(/(?<!\w)_([^_]+)_(?!\w)/g, "$1");
+  return result;
 }
 
 /**
@@ -119,105 +239,26 @@ function applyInlineFormatting(text: string): string {
 }
 
 /**
- * Wrap a single line of text (which may contain ANSI codes) to fit within width.
- * This is a simple word-wrap that accounts for visible character width.
+ * Simple word-wrap on plain text (no ANSI codes).
  */
-function wrapPlain(text: string, width: number): string[] {
+function wrapPlainText(text: string, width: number): string[] {
   if (width <= 0) return [];
+  if (text.length <= width) return [text];
 
-  // Strip ANSI to measure visible length
-  const visible = stripAnsi(text);
-  if (visible.length <= width) return [text];
-
-  // For ANSI-styled text, do character-level wrapping on visible chars
-  // This is a simplified approach: split by words on visible text, then reconstruct
-  const words = visible.split(/(\s+)/);
+  const words = text.split(/(\s+)/);
   const lines: string[] = [];
-  let currentVisible = "";
+  let current = "";
 
   for (const word of words) {
     if (!word) continue;
-    if (currentVisible.length + word.length <= width) {
-      currentVisible += word;
+    if (current.length + word.length <= width) {
+      current += word;
     } else {
-      if (currentVisible.trim()) lines.push(currentVisible.trimEnd());
-      if (word.trim()) {
-        currentVisible = word;
-      } else {
-        currentVisible = "";
-      }
+      if (current.trim()) lines.push(current.trimEnd());
+      current = word.trim() ? word : "";
     }
   }
-  if (currentVisible.trim()) lines.push(currentVisible.trimEnd());
-
-  // If the text had ANSI codes but we've lost them in word splitting,
-  // re-apply the formatting to each line by re-processing from original
-  if (text !== visible && lines.length > 0) {
-    // Rebuild using the original styled text, splitting at same positions
-    return rebuildStyledLines(text, lines, width);
-  }
+  if (current.trim()) lines.push(current.trimEnd());
 
   return lines.length > 0 ? lines : [text];
-}
-
-/**
- * Rebuild styled lines from original ANSI text matching the plain-text line breaks.
- */
-function rebuildStyledLines(styledText: string, plainLines: string[], _width: number): string[] {
-  // Simple approach: for short texts, just return the original
-  // For longer ones, try to split at line boundaries
-  if (plainLines.length <= 1) return [styledText];
-
-  const result: string[] = [];
-  let remaining = styledText;
-  
-  for (let i = 0; i < plainLines.length; i++) {
-    const plainLine = plainLines[i];
-    // Find where this plain line ends in the styled text
-    let visibleCount = 0;
-    let styledIdx = 0;
-    const targetLen = plainLine.length;
-
-    while (styledIdx < remaining.length && visibleCount < targetLen) {
-      // Skip ANSI escape sequences
-      const ansiMatch = remaining.slice(styledIdx).match(/^\x1b\[[0-9;]*m/);
-      if (ansiMatch) {
-        styledIdx += ansiMatch[0].length;
-        continue;
-      }
-      visibleCount++;
-      styledIdx++;
-    }
-
-    // Skip trailing whitespace in styled text
-    while (styledIdx < remaining.length) {
-      const ansiMatch = remaining.slice(styledIdx).match(/^\x1b\[[0-9;]*m/);
-      if (ansiMatch) {
-        styledIdx += ansiMatch[0].length;
-        continue;
-      }
-      if (remaining[styledIdx] === " " || remaining[styledIdx] === "\t") {
-        styledIdx++;
-      } else {
-        break;
-      }
-    }
-
-    result.push(remaining.slice(0, styledIdx).trimEnd());
-    remaining = remaining.slice(styledIdx);
-  }
-
-  if (remaining.trim()) {
-    result.push(remaining.trimEnd());
-  }
-
-  return result.length > 0 ? result : [styledText];
-}
-
-/**
- * Strip ANSI escape codes from a string.
- */
-function stripAnsi(text: string): string {
-  // biome-ignore lint: regex for ANSI codes
-  return text.replace(/\x1b\[[0-9;]*m/g, "");
 }

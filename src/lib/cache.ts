@@ -5,6 +5,17 @@ import os from "os";
 
 const CACHE_DIR = path.join(os.homedir(), ".xevol", "cache");
 
+// ── In-memory cache layer (max 50 entries) ──
+const MEM_CACHE_MAX = 50;
+const memCache = new Map<string, CacheEntry<unknown>>();
+
+function memCacheEvict(): void {
+  if (memCache.size > MEM_CACHE_MAX) {
+    const firstKey = memCache.keys().next().value;
+    if (firstKey !== undefined) memCache.delete(firstKey);
+  }
+}
+
 /** Default TTLs in milliseconds */
 export const TTL = {
   LIST: 5 * 60 * 1000,       // 5 minutes for lists
@@ -41,6 +52,18 @@ async function ensureCacheDir(): Promise<void> {
 
 /** Get cached data if it exists and hasn't expired */
 export async function getCached<T>(key: string): Promise<{ data: T; stale: boolean } | null> {
+  // Check in-memory cache first
+  const mem = memCache.get(key) as CacheEntry<T> | undefined;
+  if (mem) {
+    const age = Date.now() - mem.timestamp;
+    if (age > mem.ttl * 2) {
+      memCache.delete(key);
+    } else {
+      return { data: mem.data, stale: age > mem.ttl };
+    }
+  }
+
+  // Fall through to disk
   try {
     const raw = await fs.readFile(cacheFilePath(key), "utf8");
     const entry = JSON.parse(raw) as CacheEntry<T>;
@@ -50,6 +73,9 @@ export async function getCached<T>(key: string): Promise<{ data: T; stale: boole
       void fs.unlink(cacheFilePath(key)).catch(() => {});
       return null;
     }
+    // Populate memCache from disk hit
+    memCache.set(key, entry);
+    memCacheEvict();
     return {
       data: entry.data,
       stale: age > entry.ttl,
@@ -61,13 +87,17 @@ export async function getCached<T>(key: string): Promise<{ data: T; stale: boole
 
 /** Store data in cache */
 export async function setCache(key: string, data: unknown, ttl?: number): Promise<void> {
+  const entry: CacheEntry<unknown> = {
+    data,
+    timestamp: Date.now(),
+    ttl: ttl ?? TTL.LIST,
+  };
+  // Write to in-memory cache
+  memCache.set(key, entry);
+  memCacheEvict();
+  // Write to disk
   try {
     await ensureCacheDir();
-    const entry: CacheEntry<unknown> = {
-      data,
-      timestamp: Date.now(),
-      ttl: ttl ?? TTL.LIST,
-    };
     await fs.writeFile(cacheFilePath(key), JSON.stringify(entry), "utf8");
   } catch {
     // Silently fail — cache is best-effort
@@ -76,6 +106,7 @@ export async function setCache(key: string, data: unknown, ttl?: number): Promis
 
 /** Clear all cached data */
 export async function clearCache(): Promise<void> {
+  memCache.clear();
   try {
     const files = await fs.readdir(CACHE_DIR);
     await Promise.all(

@@ -24,14 +24,25 @@ export const DEFAULT_API_URL = "https://api.xevol.com";
 const CONFIG_DIR = path.join(os.homedir(), ".xevol");
 export const CONFIG_PATH = path.join(CONFIG_DIR, "config.json");
 
+// ── In-memory config cache ──
+let _configCache: XevolConfig | null = null;
+let _configCacheAt = 0;
+const CONFIG_TTL = 30_000;
+
 async function ensureConfigDir(): Promise<void> {
   await fs.mkdir(CONFIG_DIR, { recursive: true });
 }
 
 export async function readConfig(): Promise<XevolConfig | null> {
+  if (_configCache && Date.now() - _configCacheAt < CONFIG_TTL) {
+    return _configCache;
+  }
   try {
     const raw = await fs.readFile(CONFIG_PATH, "utf8");
-    return JSON.parse(raw) as XevolConfig;
+    const config = JSON.parse(raw) as XevolConfig;
+    _configCache = config;
+    _configCacheAt = Date.now();
+    return config;
   } catch (error) {
     if ((error as { code?: string }).code === "ENOENT") {
       return null;
@@ -49,6 +60,8 @@ export async function writeConfig(config: XevolConfig): Promise<void> {
   await ensureConfigDir();
   const payload = JSON.stringify(config, null, 2) + "\n";
   await fs.writeFile(CONFIG_PATH, payload, { encoding: "utf8", mode: 0o600 });
+  _configCache = config;
+  _configCacheAt = Date.now();
 }
 
 export async function updateConfig(update: Partial<XevolConfig>): Promise<XevolConfig> {

@@ -6,7 +6,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { colors } from "../theme";
 import { pickValue } from "../../lib/utils";
 import { wrapText } from "../utils/wrapText";
-import { renderMarkdownLines } from "../utils/renderMarkdown";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
 import { useLayout } from "../context/LayoutContext";
@@ -218,14 +218,14 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
 
   const contentWidth = Math.max(20, terminal.columns - 4);
   const spikeContent = activeSpike ? (streamContent || getSpikeContent(activeSpike)) : "";
-  const contentLines = useMemo(
-    () => renderMarkdownLines(spikeContent || "No spike content available.", contentWidth),
+  const parsedLines = useMemo(
+    () => parseMarkdownStructure(spikeContent || "No spike content available.", contentWidth),
     [spikeContent, contentWidth],
   );
 
   const reservedRows = 7 + (streamError ? 1 : 0) + (streaming ? 1 : 0);
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
-  const maxOffset = Math.max(0, contentLines.length - contentHeight);
+  const maxOffset = Math.max(0, parsedLines.length - contentHeight);
 
   const userScrolledRef = React.useRef(false);
   useEffect(() => {
@@ -294,7 +294,7 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
     }
   });
 
-  const visibleLines = contentLines.slice(scrollOffset, scrollOffset + contentHeight);
+  const visibleLines = renderMarkdownWindow(parsedLines, scrollOffset, contentHeight);
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>

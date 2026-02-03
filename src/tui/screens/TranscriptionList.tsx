@@ -16,7 +16,7 @@ import { formatDurationCompact } from "../../lib/output";
 import { openUrl } from "../utils/openUrl";
 import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import { formatTimeAgo } from "../utils/time";
-import { renderMarkdownLines } from "../utils/renderMarkdown";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 import { SplitLayout } from "../components/SplitLayout";
 import type { NavigationState } from "../hooks/useNavigation";
 import { useLayout } from "../context/LayoutContext";
@@ -116,6 +116,7 @@ export function TranscriptionList({
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewCacheRef = useRef<Map<string, { title: string; summary: string; status: string }>>(new Map());
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!notice) return;
@@ -251,7 +252,7 @@ export function TranscriptionList({
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.length;
 
-  // Debounced preview fetch for wide mode
+  // Debounced preview fetch for wide mode with AbortController
   useEffect(() => {
     if (!isWide || !selectedItem) {
       setPreviewData(null);
@@ -265,6 +266,11 @@ export function TranscriptionList({
       return;
     }
 
+    // Abort previous in-flight request
+    previewAbortRef.current?.abort();
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
+
     setPreviewLoading(true);
     previewTimerRef.current = setTimeout(() => {
       void (async () => {
@@ -276,7 +282,9 @@ export function TranscriptionList({
           const rawResponse = (await apiFetch(`/v1/analysis/${selectedItem.id}`, {
             token,
             apiUrl,
+            signal: controller.signal,
           })) as Record<string, unknown>;
+          if (controller.signal.aborted) return;
           const response = parseResponse(AnalysisResponseSchema, rawResponse, "analysis-preview");
           const analysis = unwrapAnalysis(response);
           const preview = {
@@ -285,17 +293,23 @@ export function TranscriptionList({
             status: pickValueOrDash(analysis ?? {}, ["status", "state"]),
           };
           previewCacheRef.current.set(selectedItem.id, preview);
-          setPreviewData(preview);
-        } catch {
+          if (!controller.signal.aborted) {
+            setPreviewData(preview);
+          }
+        } catch (err) {
+          if ((err as Error).name === "AbortError") return;
           setPreviewData(null);
         } finally {
-          setPreviewLoading(false);
+          if (!controller.signal.aborted) {
+            setPreviewLoading(false);
+          }
         }
       })();
     }, 300);
 
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+      controller.abort();
     };
   }, [isWide, selectedItem?.id]);
 
@@ -742,7 +756,7 @@ export function TranscriptionList({
           </Box>
           {previewData.summary ? (
             <Box marginTop={1} flexDirection="column">
-              <Text>{renderMarkdownLines(previewData.summary, previewWidth).slice(0, Math.max(4, terminal.rows - 10)).join("\n")}</Text>
+              <Text>{renderMarkdownWindow(parseMarkdownStructure(previewData.summary, previewWidth), 0, Math.max(4, terminal.rows - 10)).join("\n")}</Text>
             </Box>
           ) : null}
         </Box>

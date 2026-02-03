@@ -11,10 +11,6 @@ import { useLayout } from "../context/LayoutContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema } from "../../lib/schemas";
 
-// Module-level cache so navigating away and back doesn't re-fetch
-let _cachedRecent: Record<string, unknown> | null = null;
-let _cachedHistory: HistoryEntry[] | null = null;
-
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
@@ -63,13 +59,12 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Local history — instant, no API call
-  const [historyItems, setHistoryItems] = useState<HistoryEntry[]>(_cachedHistory ?? []);
-  const [historyLoaded, setHistoryLoaded] = useState(!!_cachedHistory);
+  const [historyItems, setHistoryItems] = useState<HistoryEntry[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const history = await getHistory();
-      _cachedHistory = history;
       setHistoryItems(history);
       setHistoryLoaded(true);
     })();
@@ -91,16 +86,11 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     [],
   );
 
-  // Validate + update cache when fresh data arrives
-  const validatedRecentData = rawRecentData ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent") : null;
-  const recentData = validatedRecentData ?? _cachedRecent;
+  // Validate response
+  const recentData = rawRecentData ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent") : null;
 
-  useEffect(() => {
-    if (validatedRecentData) _cachedRecent = validatedRecentData;
-  }, [validatedRecentData]);
-
-  // Suppress loading indicator when we have cached data (no flash on re-visit)
-  const recentLoading = rawRecentLoading && !_cachedRecent;
+  // Suppress loading indicator when we have data (useApi provides stale-while-revalidate)
+  const recentLoading = rawRecentLoading && !recentData;
 
   // Auto-refresh removed — users can press `r` to refresh
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { Spinner } from "../components/Spinner";
@@ -9,7 +9,7 @@ import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
 import { extractId, extractStatus, pickValue } from "../../lib/utils";
 import { wrapText } from "../utils/wrapText";
-import { renderMarkdownLines } from "../utils/renderMarkdown";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 import { copyToClipboard } from "../utils/clipboard";
 import { useLayout } from "../context/LayoutContext";
 import { useInputLock } from "../context/InputContext";
@@ -192,10 +192,13 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
   }, [phase, setFooterHints]);
 
   const contentWidth = Math.max(20, terminal.columns - 4);
-  const contentLines = renderMarkdownLines(streamContent || " ", contentWidth);
+  const parsedLines = useMemo(
+    () => parseMarkdownStructure(streamContent || " ", contentWidth),
+    [streamContent, contentWidth],
+  );
   const reservedRows = 10;
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
-  const maxOffset = Math.max(0, contentLines.length - contentHeight);
+  const maxOffset = Math.max(0, parsedLines.length - contentHeight);
 
   // Auto-scroll during streaming, unless user has scrolled up
   const userScrolledRef = React.useRef(false);
@@ -461,7 +464,7 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
     }
   });
 
-  const visibleLines = contentLines.slice(scrollOffset, scrollOffset + contentHeight);
+  const visibleLines = renderMarkdownWindow(parsedLines, scrollOffset, contentHeight);
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>

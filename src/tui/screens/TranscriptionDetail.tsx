@@ -11,7 +11,7 @@ import { pickValue } from "../../lib/utils";
 import { formatDuration } from "../../lib/output";
 import { openUrl } from "../utils/openUrl";
 import { wrapText } from "../utils/wrapText";
-import { renderMarkdownLines } from "../utils/renderMarkdown";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { addToHistory } from "../../lib/history";
@@ -241,27 +241,29 @@ export function TranscriptionDetail({
     "";
 
   const contentWidth = Math.max(20, terminal.columns - 4);
-  const transcriptLines = useMemo(
-    () => renderMarkdownLines(transcript || "No transcript content available.", contentWidth),
+
+  // Two-phase markdown: parse structure (cached), render only visible window
+  const transcriptParsed = useMemo(
+    () => parseMarkdownStructure(transcript || "No transcript content available.", contentWidth),
     [transcript, contentWidth],
   );
 
-  const spikeContentLines = useMemo(
-    () => renderMarkdownLines(spikeContent || "", contentWidth),
+  const spikeContentParsed = useMemo(
+    () => parseMarkdownStructure(spikeContent || "", contentWidth),
     [spikeContent, contentWidth],
   );
 
   const reservedRows = 12 + (notice ? 2 : 0);
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
 
-  const currentContentLines =
+  const currentParsedLines =
     activeTab === "transcript"
-      ? transcriptLines
+      ? transcriptParsed
       : spikeContent !== null
-        ? spikeContentLines
+        ? spikeContentParsed
         : [];
 
-  const maxOffset = Math.max(0, currentContentLines.length - contentHeight);
+  const maxOffset = Math.max(0, currentParsedLines.length - contentHeight);
 
   useEffect(() => {
     setScrollOffset((prev) => Math.min(prev, maxOffset));
@@ -587,7 +589,7 @@ export function TranscriptionDetail({
     }
   });
 
-  const visibleLines = currentContentLines.slice(scrollOffset, scrollOffset + contentHeight);
+  const visibleLines = renderMarkdownWindow(currentParsedLines, scrollOffset, contentHeight);
 
   // Tab bar component
   const tabBar = (

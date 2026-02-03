@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DependencyList } from "react";
 import { apiFetch, type ApiRequestOptions } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
@@ -22,9 +22,10 @@ export function useApi<T>(
   const optionsRef = useRef<ApiRequestOptions>(options);
   const mountedRef = useRef(true);
 
+  const optionsKey = useMemo(() => JSON.stringify(options), [options]);
   useEffect(() => {
     optionsRef.current = options;
-  }, [options]);
+  }, [optionsKey]);
 
   useEffect(() => {
     mountedRef.current = true;
