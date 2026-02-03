@@ -89,9 +89,7 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         { key: "Esc", description: "back" },
       ]);
     } else {
-      setFooterHints([
-        { key: "", description: "Processing…" },
-      ]);
+      setFooterHints([]);
     }
   }, [phase, setFooterHints]);
 
