@@ -84,10 +84,8 @@ export function useApi<T>(
       // Don't treat abort as an error
       if ((err as Error).name === "AbortError") return;
       if (mountedRef.current) {
-        // Only show error if we have no cached data to fall back on
-        if (!cached) {
-          setError((err as Error).message);
-        }
+        // Always surface the error, even when falling back to stale cached data
+        setError((err as Error).message);
       }
     } finally {
       if (mountedRef.current) {

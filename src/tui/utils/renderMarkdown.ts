@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { createHash } from "crypto";
 
 /** Module-level ANSI stripping regex (#8) */
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
@@ -21,10 +22,8 @@ const parseCache = new Map<string, ParseCacheEntry>();
 const PARSE_CACHE_MAX = 10;
 
 function parseCacheKey(markdown: string, width: number): string {
-  // Simple hash: length + first/last 100 chars + width
-  const prefix = markdown.slice(0, 100);
-  const suffix = markdown.slice(-100);
-  return `${markdown.length}:${width}:${prefix}:${suffix}`;
+  const hash = createHash("md5").update(markdown).digest("hex");
+  return `${width}:${hash}`;
 }
 
 function parseCacheSet(key: string, lines: string[]): void {
@@ -201,8 +200,8 @@ export function renderMarkdownLines(markdown: string, width: number): string[] {
  */
 function stripInlineMarkdown(text: string): string {
   let result = text;
-  // Inline code
-  result = result.replace(/`([^`]+)`/g, "`$1`");
+  // Inline code — strip backticks
+  result = result.replace(/`([^`]+)`/g, "$1");
   // Bold+italic
   result = result.replace(/\*{3}([^*]+)\*{3}/g, "$1");
   result = result.replace(/_{3}([^_]+)_{3}/g, "$1");

@@ -10,9 +10,10 @@ const MEM_CACHE_MAX = 50;
 const memCache = new Map<string, CacheEntry<unknown>>();
 
 function memCacheEvict(): void {
-  if (memCache.size > MEM_CACHE_MAX) {
+  while (memCache.size > MEM_CACHE_MAX) {
     const firstKey = memCache.keys().next().value;
     if (firstKey !== undefined) memCache.delete(firstKey);
+    else break;
   }
 }
 

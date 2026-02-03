@@ -88,6 +88,15 @@ function unwrapAnalysis(data: Record<string, unknown> | null): Record<string, un
   return data;
 }
 
+/** Memoized preview content to avoid re-parsing markdown on every render */
+function PreviewContent({ summary, width, maxLines }: { summary: string; width: number; maxLines: number }): JSX.Element {
+  const rendered = useMemo(() => {
+    const parsed = parseMarkdownStructure(summary, width);
+    return renderMarkdownWindow(parsed, 0, maxLines).join("\n");
+  }, [summary, width, maxLines]);
+  return <Text>{rendered}</Text>;
+}
+
 export function TranscriptionList({
   params,
   navigation,
@@ -756,7 +765,7 @@ export function TranscriptionList({
           </Box>
           {previewData.summary ? (
             <Box marginTop={1} flexDirection="column">
-              <Text>{renderMarkdownWindow(parseMarkdownStructure(previewData.summary, previewWidth), 0, Math.max(4, terminal.rows - 10)).join("\n")}</Text>
+              <PreviewContent summary={previewData.summary} width={previewWidth} maxLines={Math.max(4, terminal.rows - 10)} />
             </Box>
           ) : null}
         </Box>

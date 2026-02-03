@@ -11,6 +11,9 @@ import { useLayout } from "../context/LayoutContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema } from "../../lib/schemas";
 
+// Module-level cache to avoid flash on re-mount
+let _historyCache: HistoryEntry[] | null = null;
+
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
@@ -58,13 +61,14 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
   const { setFooterHints, setFooterStatus } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Local history — instant, no API call
-  const [historyItems, setHistoryItems] = useState<HistoryEntry[]>([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
+  // Local history — use module-level cache for instant initial render (no flash)
+  const [historyItems, setHistoryItems] = useState<HistoryEntry[]>(_historyCache ?? []);
+  const [historyLoaded, setHistoryLoaded] = useState(_historyCache !== null);
 
   useEffect(() => {
     void (async () => {
       const history = await getHistory();
+      _historyCache = history;
       setHistoryItems(history);
       setHistoryLoaded(true);
     })();
