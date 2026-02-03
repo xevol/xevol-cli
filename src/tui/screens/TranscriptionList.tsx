@@ -306,15 +306,13 @@ export function TranscriptionList({
   const selectedCount = selectedIds.length;
 
   // Clear preview when search changes to avoid stale data
-  useEffect(() => {
-    setPreviewData(null);
-    setPreviewLoading(false);
-  }, [searchQuery]);
-
   // Debounced preview fetch for wide mode with AbortController
+  // searchQuery included as dependency so preview refreshes after search
+  const prevPreviewIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isWide || !selectedItem) {
       setPreviewData(null);
+      prevPreviewIdRef.current = null;
       return;
     }
 
@@ -370,7 +368,7 @@ export function TranscriptionList({
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
       controller.abort();
     };
-  }, [isWide, selectedItem?.id]);
+  }, [isWide, selectedItem?.id, searchQuery]);
 
   const reservedRows =
     6 +
@@ -798,10 +796,11 @@ export function TranscriptionList({
     </Box>
   );
 
-  // Preview panel for wide mode
+  // Preview panel for wide mode — fixed height prevents layout jumps on load
   const previewWidth = Math.floor(terminal.columns * 0.6) - 2;
+  const previewHeight = terminal.rows - 4;
   const previewPanel = (
-    <Box flexDirection="column" paddingX={1} paddingY={1}>
+    <Box flexDirection="column" paddingX={1} paddingY={1} height={previewHeight} overflow="hidden">
       {previewLoading && <Spinner label="Loading preview…" />}
       {!previewLoading && previewData && (
         <Box flexDirection="column">
