@@ -17,11 +17,12 @@ import { registerDeleteCommand } from "./commands/delete";
 import { registerOpenCommand } from "./commands/open";
 import { registerWorkspaceCommand } from "./commands/workspace";
 import { printHeader } from "./lib/header";
+import { launchTUI } from "./tui/app";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
-const SKIP_HEADER_COMMANDS = new Set(["login", "config", "export", "delete", "open", "workspace"]);
+const SKIP_HEADER_COMMANDS = new Set(["login", "config", "export", "delete", "open", "workspace", "tui"]);
 
 function shouldShowHeader(): boolean {
   const args = process.argv.slice(2);
@@ -70,11 +71,17 @@ registerDeleteCommand(program);
 registerOpenCommand(program);
 registerWorkspaceCommand(program);
 
+program
+  .command("tui")
+  .description("Launch the interactive TUI")
+  .action(() => {
+    launchTUI(version);
+  });
+
 // Show header + help when invoked with no arguments
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  await printHeader(version);
-  program.help();
+  launchTUI(version);
 } else {
   await program.parseAsync(process.argv);
 }
