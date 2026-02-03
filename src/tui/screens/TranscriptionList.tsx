@@ -25,6 +25,14 @@ import { useInputLock } from "../context/InputContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema, AnalysisResponseSchema } from "../../lib/schemas";
 
+// Named constants (extracted from magic numbers)
+const CACHE_LIMIT = 50;
+const PREVIEW_DEBOUNCE_MS = 150;
+const CURSOR_THROTTLE_MS = 30;
+const SUMMARY_SLICE = 500;
+const NOTICE_TIMEOUT_MS = 5000;
+const SEARCH_DEBOUNCE_MS = 300;
+
 interface ListParams {
   status?: string;
   sort?: string;
@@ -175,7 +183,7 @@ export function TranscriptionList({
 
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(null), 5000);
+    const timer = setTimeout(() => setNotice(null), NOTICE_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -235,7 +243,7 @@ export function TranscriptionList({
     const timer = setTimeout(() => {
       setSearchValue(searchDraft);
       setPagination({ page: 1 });
-    }, 300);
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
     };
@@ -297,7 +305,9 @@ export function TranscriptionList({
   }, [searchQuery]);
 
   const clampedIndex = Math.min(selectedIndex, Math.max(0, listItems.length - 1));
-  if (clampedIndex !== selectedIndex) setSelectedIndex(clampedIndex);
+  useEffect(() => {
+    if (clampedIndex !== selectedIndex) setSelectedIndex(clampedIndex);
+  }, [clampedIndex, selectedIndex]);
   const selectedItem = listItems[clampedIndex];
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.length;
@@ -330,7 +340,7 @@ export function TranscriptionList({
     const controller = new AbortController();
     previewAbortRef.current = controller;
 
-    // Short debounce — cursor throttle (50ms) already handles rapid movement
+    // Short debounce — cursor throttle already handles rapid movement
     previewTimerRef.current = setTimeout(() => {
       void (async () => {
         try {
@@ -348,11 +358,11 @@ export function TranscriptionList({
           const analysis = unwrapAnalysis(response);
           const preview = {
             title: pickValueOrDash(analysis ?? {}, ["title", "videoTitle", "name"]),
-            summary: ((analysis?.cleanContent as string) ?? (analysis?.content as string) ?? (analysis?.transcript as string) ?? "").slice(0, 500),
+            summary: ((analysis?.cleanContent as string) ?? (analysis?.content as string) ?? (analysis?.transcript as string) ?? "").slice(0, SUMMARY_SLICE),
             status: pickValueOrDash(analysis ?? {}, ["status", "state"]),
           };
-          // Evict oldest entry if cache exceeds 50
-          if (previewCacheRef.current.size >= 50) {
+          // Evict oldest entry if cache exceeds limit
+          if (previewCacheRef.current.size >= CACHE_LIMIT) {
             const firstKey = previewCacheRef.current.keys().next().value;
             if (firstKey !== undefined) previewCacheRef.current.delete(firstKey);
           }
@@ -369,13 +379,13 @@ export function TranscriptionList({
           }
         }
       })();
-    }, 150);
+    }, PREVIEW_DEBOUNCE_MS);
 
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
       controller.abort();
     };
-  }, [isWide, selectedItem?.id, searchQuery]);
+  }, [isWide, selectedItem?.id]);
 
   const reservedRows =
     6 +
@@ -510,13 +520,13 @@ export function TranscriptionList({
       for (const id of succeededIds) {
         previewCacheRef.current.delete(id);
       }
+      await refresh();
       if (failedIds.length > 0) {
         setDeletedIds(prev => prev.filter(id => !failedIds.includes(id)));
         setNotice(`Failed to delete ${failedIds.length} of ${idsToDelete.length}`);
       } else {
         setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
       }
-      await refresh();
     } catch (err) {
       // Revert optimistic delete on failure
       setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
@@ -622,7 +632,7 @@ export function TranscriptionList({
 
     if ((key.upArrow || lower === "k") && listItems.length > 0) {
       const now = Date.now();
-      if (now - lastMoveRef.current < 50) return;
+      if (now - lastMoveRef.current < CURSOR_THROTTLE_MS) return;
       lastMoveRef.current = now;
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
@@ -630,7 +640,7 @@ export function TranscriptionList({
 
     if ((key.downArrow || lower === "j") && listItems.length > 0) {
       const now = Date.now();
-      if (now - lastMoveRef.current < 50) return;
+      if (now - lastMoveRef.current < CURSOR_THROTTLE_MS) return;
       lastMoveRef.current = now;
       setSelectedIndex((prev) => Math.min(listItems.length - 1, prev + 1));
       return;
