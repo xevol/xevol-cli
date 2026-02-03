@@ -8,6 +8,8 @@ import { formatTimeAgo } from "../utils/time";
 import { getHistory, type HistoryEntry } from "../../lib/history";
 import type { NavigationState } from "../hooks/useNavigation";
 import { useLayout } from "../context/LayoutContext";
+import { parseResponse } from "../../lib/parseResponse";
+import { TranscriptionListResponseSchema } from "../../lib/schemas";
 
 // Module-level cache so navigating away and back doesn't re-fetch
 let _cachedRecent: Record<string, unknown> | null = null;
@@ -89,12 +91,13 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     [],
   );
 
-  // Update cache when fresh data arrives
-  const recentData = rawRecentData ?? _cachedRecent;
+  // Validate + update cache when fresh data arrives
+  const validatedRecentData = rawRecentData ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent") : null;
+  const recentData = validatedRecentData ?? _cachedRecent;
 
   useEffect(() => {
-    if (rawRecentData) _cachedRecent = rawRecentData;
-  }, [rawRecentData]);
+    if (validatedRecentData) _cachedRecent = validatedRecentData;
+  }, [validatedRecentData]);
 
   // Suppress loading indicator when we have cached data (no flash on re-visit)
   const recentLoading = rawRecentLoading && !_cachedRecent;

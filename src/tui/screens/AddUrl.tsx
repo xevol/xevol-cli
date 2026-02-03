@@ -13,6 +13,8 @@ import { renderMarkdownLines } from "../utils/renderMarkdown";
 import { copyToClipboard } from "../utils/clipboard";
 import { useLayout } from "../context/LayoutContext";
 import { useInputLock } from "../context/InputContext";
+import { parseResponse } from "../../lib/parseResponse";
+import { AddResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
 
 interface TerminalSize {
   columns: number;
@@ -226,11 +228,12 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
       startPhaseTimer("submitting");
       setStatusText("Submitting URL…");
 
-      const addResponse = (await apiFetch("/v1/add", {
+      const rawAddResponse = (await apiFetch("/v1/add", {
         query: { url: youtubeUrl, outputLang: "en" },
         token,
         apiUrl,
       })) as Record<string, unknown>;
+      const addResponse = parseResponse(AddResponseSchema, rawAddResponse, "add-url");
 
       if (controller.signal.aborted) return;
 
@@ -292,12 +295,13 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
       startPhaseTimer("creating-spike");
       setStatusText("Creating spike…");
 
-      const spikeResponse = (await apiFetch(`/spikes/${tid}`, {
+      const rawSpikeResponse = (await apiFetch(`/spikes/${tid}`, {
         method: "POST",
         body: { promptId: "formatted", outputLang: "en" },
         token,
         apiUrl,
       })) as Record<string, unknown>;
+      const spikeResponse = parseResponse(SpikeCreateResponseSchema, rawSpikeResponse, "spike-create-add");
 
       if (controller.signal.aborted) return;
 

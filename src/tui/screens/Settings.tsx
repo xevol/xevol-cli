@@ -7,6 +7,8 @@ import { colors } from "../theme";
 import { DEFAULT_API_URL, readConfig, writeConfig, type XevolConfig } from "../../lib/config";
 import { useLayout } from "../context/LayoutContext";
 import { useInputLock } from "../context/InputContext";
+import { parseResponse } from "../../lib/parseResponse";
+import { StatusResponseSchema } from "../../lib/schemas";
 
 interface SettingsProps {
   onBack: () => void;
@@ -63,11 +65,12 @@ export function Settings({ onBack }: SettingsProps): JSX.Element {
   const [editValue, setEditValue] = useState("");
 
   const {
-    data: statusData,
+    data: rawStatusData,
     loading: statusLoading,
     error: statusError,
   } = useApi<Record<string, unknown>>("/auth/cli/status");
 
+  const statusData = rawStatusData ? parseResponse(StatusResponseSchema, rawStatusData, "settings-status") : null;
   const usageLines = useMemo(() => (statusData ? buildUsageLines(statusData) : []), [statusData]);
 
   useEffect(() => {

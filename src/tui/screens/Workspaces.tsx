@@ -5,6 +5,8 @@ import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
 import { readConfig, updateConfig } from "../../lib/config";
 import { useLayout } from "../context/LayoutContext";
+import { parseResponse } from "../../lib/parseResponse";
+import { WorkspacesResponseSchema } from "../../lib/schemas";
 
 interface WorkspacesProps {
   onBack: () => void;
@@ -83,7 +85,8 @@ export function Workspaces({ onBack }: WorkspacesProps): JSX.Element {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const { data: rawData, loading, error } = useApi<Record<string, unknown>>("/v1/workspaces", {}, []);
+  const { data: rawApiData, loading, error } = useApi<Record<string, unknown>>("/v1/workspaces", {}, []);
+  const rawData = rawApiData ? parseResponse(WorkspacesResponseSchema, rawApiData, "workspaces") : null;
 
   const workspaces: WorkspaceEntry[] = useMemo(() => {
     if (!rawData) return [];

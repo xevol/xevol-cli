@@ -21,6 +21,8 @@ import { SplitLayout } from "../components/SplitLayout";
 import type { NavigationState } from "../hooks/useNavigation";
 import { useLayout } from "../context/LayoutContext";
 import { useInputLock } from "../context/InputContext";
+import { parseResponse } from "../../lib/parseResponse";
+import { TranscriptionListResponseSchema, AnalysisResponseSchema } from "../../lib/schemas";
 
 interface ListParams {
   status?: string;
@@ -135,11 +137,12 @@ export function TranscriptionList({
     [page, limit, status, sort, searchQuery],
   );
 
-  // Keep previous data visible while loading new page (prevents flash/blank)
-  const data = rawData ?? prevDataRef.current;
+  // Validate + keep previous data visible while loading new page (prevents flash/blank)
+  const validatedData = rawData ? parseResponse(TranscriptionListResponseSchema, rawData, "transcription-list") : null;
+  const data = validatedData ?? prevDataRef.current;
   useEffect(() => {
-    if (rawData) prevDataRef.current = rawData;
-  }, [rawData]);
+    if (validatedData) prevDataRef.current = validatedData;
+  }, [validatedData]);
 
   // Reset cursor to top on page change
   useEffect(() => {
@@ -270,10 +273,11 @@ export function TranscriptionList({
           const { token } = resolveToken(config);
           if (!token) { setPreviewLoading(false); return; }
           const apiUrl = resolveApiUrl(config);
-          const response = (await apiFetch(`/v1/analysis/${selectedItem.id}`, {
+          const rawResponse = (await apiFetch(`/v1/analysis/${selectedItem.id}`, {
             token,
             apiUrl,
           })) as Record<string, unknown>;
+          const response = parseResponse(AnalysisResponseSchema, rawResponse, "analysis-preview");
           const analysis = unwrapAnalysis(response);
           const preview = {
             title: pickValueOrDash(analysis ?? {}, ["title", "videoTitle", "name"]),
@@ -449,10 +453,11 @@ export function TranscriptionList({
       const apiUrl = resolveApiUrl(config);
       let exportedCount = 0;
       for (const id of selectedIds) {
-        const response = (await apiFetch(`/v1/analysis/${id}`, {
+        const rawResponse = (await apiFetch(`/v1/analysis/${id}`, {
           token,
           apiUrl,
         })) as Record<string, unknown>;
+        const response = parseResponse(AnalysisResponseSchema, rawResponse, "analysis-export");
         const analysis = unwrapAnalysis(response);
         if (!analysis) continue;
         const output = buildMarkdownFromAnalysis(analysis);

@@ -19,6 +19,8 @@ import { streamSSE, type SSEEvent } from "../../lib/sse";
 import { copyToClipboard } from "../utils/clipboard";
 import type { NavigationState } from "../hooks/useNavigation";
 import { useLayout } from "../context/LayoutContext";
+import { parseResponse } from "../../lib/parseResponse";
+import { AnalysisResponseSchema, PromptsResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
 
 interface TerminalSize {
   columns: number;
@@ -174,10 +176,11 @@ export function TranscriptionDetail({
 
   const { data: rawDetailData, loading: rawDetailLoading, error, refresh } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
   const prevDetailRef = useRef<Record<string, unknown> | null>(null);
-  const data = rawDetailData ?? prevDetailRef.current;
+  const validatedDetailData = rawDetailData ? parseResponse(AnalysisResponseSchema, rawDetailData, "analysis-detail") : null;
+  const data = validatedDetailData ?? prevDetailRef.current;
   useEffect(() => {
-    if (rawDetailData) prevDetailRef.current = rawDetailData;
-  }, [rawDetailData]);
+    if (validatedDetailData) prevDetailRef.current = validatedDetailData;
+  }, [validatedDetailData]);
   // Only show loading spinner when no data exists yet (stale-while-revalidate)
   const loading = rawDetailLoading && !data;
   const analysis = useMemo(() => unwrapAnalysis(data), [data]);
@@ -190,10 +193,11 @@ export function TranscriptionDetail({
     refresh: refreshPrompts,
   } = useApi<Record<string, unknown>>("/v1/prompts", {}, []);
   const prevPromptsRef = useRef<Record<string, unknown> | null>(null);
-  const promptsData = rawPromptsData ?? prevPromptsRef.current;
+  const validatedPromptsData = rawPromptsData ? parseResponse(PromptsResponseSchema, rawPromptsData, "prompts") : null;
+  const promptsData = validatedPromptsData ?? prevPromptsRef.current;
   useEffect(() => {
-    if (rawPromptsData) prevPromptsRef.current = rawPromptsData;
-  }, [rawPromptsData]);
+    if (validatedPromptsData) prevPromptsRef.current = validatedPromptsData;
+  }, [validatedPromptsData]);
   const promptsLoading = rawPromptsLoading && !promptsData;
 
   const prompts = useMemo(() => {
@@ -293,12 +297,13 @@ export function TranscriptionDetail({
 
     try {
       // POST to create the spike
-      const response = await apiFetch<Record<string, unknown>>(`/spikes/${id}`, {
+      const rawResponse = await apiFetch<Record<string, unknown>>(`/spikes/${id}`, {
         method: "POST",
         body: { promptId: prompt.id, outputLang: "en" },
         token,
         apiUrl,
       });
+      const response = parseResponse(SpikeCreateResponseSchema, rawResponse, "spike-create");
 
       setCreatingSpike(false);
 
