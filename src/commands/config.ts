@@ -75,7 +75,7 @@ function setNestedValue(obj: UserConfig, dotKey: string, value: unknown): void {
 
 export function registerConfigCommand(program: Command): void {
   const configCmd = program
-    .command("config")
+    .command("config", { hidden: true })
     .description("Manage local CLI configuration");
 
   configCmd

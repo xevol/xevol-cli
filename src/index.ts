@@ -36,7 +36,7 @@ const program = new Command();
 
 program
   .name("xevol")
-  .description("XEVol — your info manager. Transcribe, analyze, and explore YouTube content from the terminal.")
+  .description("Xevol is an info manager to consume, remix, make, publish, and offer systems, products, and workflows.")
   .version(version)
   .option("--token <token>", "Override auth token")
   .option("--no-color", "Disable colored output")
