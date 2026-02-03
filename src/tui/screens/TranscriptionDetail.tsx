@@ -241,6 +241,7 @@ export function TranscriptionDetail({
   // Reset scroll when switching tabs
   useEffect(() => {
     setScrollOffset(0);
+    userScrolledRef.current = false;
   }, [activeTab]);
 
   // Create spike and stream content
@@ -339,9 +340,10 @@ export function TranscriptionDetail({
     };
   }, []);
 
-  // Auto-scroll when streaming
+  // Auto-scroll when streaming, unless user has scrolled up
+  const userScrolledRef = React.useRef(false);
   useEffect(() => {
-    if (streaming && activeTab === "spikes") {
+    if (streaming && activeTab === "spikes" && !userScrolledRef.current) {
       setScrollOffset(maxOffset);
     }
   }, [maxOffset, streaming, activeTab]);
@@ -483,11 +485,16 @@ export function TranscriptionDetail({
       if (spikeContent !== null) {
         // Viewing spike content — scroll only
         if (key.upArrow || lower === "k") {
+          userScrolledRef.current = true;
           setScrollOffset((prev) => Math.max(0, prev - 1));
           return;
         }
         if (key.downArrow || lower === "j") {
-          setScrollOffset((prev) => Math.min(maxOffset, prev + 1));
+          setScrollOffset((prev) => {
+            const next = Math.min(maxOffset, prev + 1);
+            if (next >= maxOffset) userScrolledRef.current = false;
+            return next;
+          });
           return;
         }
       } else {

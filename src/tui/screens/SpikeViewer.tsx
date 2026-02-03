@@ -226,10 +226,11 @@ export function SpikeViewer({ id, onBack, terminal, setFooterHints }: SpikeViewe
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
   const maxOffset = Math.max(0, contentLines.length - contentHeight);
 
+  const userScrolledRef = React.useRef(false);
   useEffect(() => {
-    if (streaming) {
+    if (streaming && !userScrolledRef.current) {
       setScrollOffset(maxOffset);
-    } else {
+    } else if (!streaming) {
       setScrollOffset((prev) => Math.min(prev, maxOffset));
     }
   }, [maxOffset, streaming]);
@@ -251,12 +252,17 @@ export function SpikeViewer({ id, onBack, terminal, setFooterHints }: SpikeViewe
       }
 
       if (key.upArrow || lower === "k") {
+        userScrolledRef.current = true;
         setScrollOffset((prev) => Math.max(0, prev - 1));
         return;
       }
 
       if (key.downArrow || lower === "j") {
-        setScrollOffset((prev) => Math.min(maxOffset, prev + 1));
+        setScrollOffset((prev) => {
+          const next = Math.min(maxOffset, prev + 1);
+          if (next >= maxOffset) userScrolledRef.current = false;
+          return next;
+        });
       }
       return;
     }

@@ -101,9 +101,10 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
   const maxOffset = Math.max(0, contentLines.length - contentHeight);
 
-  // Auto-scroll during streaming
+  // Auto-scroll during streaming, unless user has scrolled up
+  const userScrolledRef = React.useRef(false);
   useEffect(() => {
-    if (phase === "streaming") {
+    if (phase === "streaming" && !userScrolledRef.current) {
       setScrollOffset(maxOffset);
     }
   }, [maxOffset, phase]);
@@ -301,11 +302,16 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         return;
       }
       if (key.upArrow || input.toLowerCase() === "k") {
+        userScrolledRef.current = true;
         setScrollOffset((prev) => Math.max(0, prev - 1));
         return;
       }
       if (key.downArrow || input.toLowerCase() === "j") {
-        setScrollOffset((prev) => Math.min(maxOffset, prev + 1));
+        setScrollOffset((prev) => {
+          const next = Math.min(maxOffset, prev + 1);
+          if (next >= maxOffset) userScrolledRef.current = false;
+          return next;
+        });
         return;
       }
     }
