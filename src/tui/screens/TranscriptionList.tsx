@@ -19,6 +19,7 @@ import { formatTimeAgo } from "../utils/time";
 import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 import { SplitLayout } from "../components/SplitLayout";
 import type { NavigationState } from "../hooks/useNavigation";
+import type { Hint } from "../components/Footer";
 import { useLayout } from "../context/LayoutContext";
 import { useInputLock } from "../context/InputContext";
 import { parseResponse } from "../../lib/parseResponse";
@@ -295,13 +296,9 @@ export function TranscriptionList({
     setSelectedIndex(0);
   }, [searchQuery]);
 
-  useEffect(() => {
-    if (selectedIndex >= listItems.length) {
-      setSelectedIndex(Math.max(0, listItems.length - 1));
-    }
-  }, [listItems.length, selectedIndex]);
-
-  const selectedItem = listItems[selectedIndex];
+  const clampedIndex = Math.min(selectedIndex, Math.max(0, listItems.length - 1));
+  if (clampedIndex !== selectedIndex) setSelectedIndex(clampedIndex);
+  const selectedItem = listItems[clampedIndex];
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.length;
 
@@ -354,6 +351,11 @@ export function TranscriptionList({
             summary: ((analysis?.cleanContent as string) ?? (analysis?.content as string) ?? (analysis?.transcript as string) ?? "").slice(0, 500),
             status: pickValueOrDash(analysis ?? {}, ["status", "state"]),
           };
+          // Evict oldest entry if cache exceeds 50
+          if (previewCacheRef.current.size >= 50) {
+            const firstKey = previewCacheRef.current.keys().next().value;
+            if (firstKey !== undefined) previewCacheRef.current.delete(firstKey);
+          }
           previewCacheRef.current.set(selectedItem.id, preview);
           if (!controller.signal.aborted) {
             setPreviewData(preview);
@@ -459,6 +461,8 @@ export function TranscriptionList({
         token,
         apiUrl,
       });
+      // Clear preview cache for deleted item
+      previewCacheRef.current.delete(itemId);
       // Refresh to sync server state (deletedIds will be cleared on new data)
       await refresh();
       setDeletedIds((prev) => prev.filter((id) => id !== itemId));
@@ -497,15 +501,22 @@ export function TranscriptionList({
         return;
       }
       const apiUrl = resolveApiUrl(config);
-      for (const id of idsToDelete) {
-        await apiFetch(`/v1/transcriptions/${id}`, {
-          method: "DELETE",
-          token,
-          apiUrl,
-        });
+      const results = await Promise.allSettled(
+        idsToDelete.map(id => apiFetch(`/v1/transcriptions/${id}`, { method: "DELETE", token, apiUrl }))
+      );
+      const failedIds = idsToDelete.filter((_, i) => results[i].status === "rejected");
+      const succeededIds = idsToDelete.filter((_, i) => results[i].status === "fulfilled");
+      // Clear preview cache for successfully deleted items
+      for (const id of succeededIds) {
+        previewCacheRef.current.delete(id);
+      }
+      if (failedIds.length > 0) {
+        setDeletedIds(prev => prev.filter(id => !failedIds.includes(id)));
+        setNotice(`Failed to delete ${failedIds.length} of ${idsToDelete.length}`);
+      } else {
+        setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
       }
       await refresh();
-      setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
     } catch (err) {
       // Revert optimistic delete on failure
       setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
@@ -516,6 +527,7 @@ export function TranscriptionList({
   }, [refresh, selectedIds]);
 
   const handleBatchExport = useCallback(async () => {
+    if (isBatchExporting) return;
     if (selectedIds.length === 0) {
       setNotice("No transcriptions selected.");
       return;
@@ -556,7 +568,7 @@ export function TranscriptionList({
     } finally {
       setIsBatchExporting(false);
     }
-  }, [selectedIds]);
+  }, [isBatchExporting, selectedIds]);
 
   const handleOpen = useCallback(() => {
     if (!selectedItem) return;
@@ -566,6 +578,7 @@ export function TranscriptionList({
   }, [selectedItem]);
 
   useInput((input, key) => {
+    if (isDeleting || isBatchDeleting || isBatchExporting) return;
     const lower = input.toLowerCase();
 
     if (confirmBatchDelete) {
@@ -703,10 +716,8 @@ export function TranscriptionList({
     }
   });
 
-  // Reserve rows for app chrome: Header(1) + StatsBar(1) + Footer(1) + padding(1) = 4
-  const availableRows = terminal.rows - 4;
   const listPanel = (
-    <Box flexDirection="column" paddingX={1} paddingY={1} height={availableRows} overflow="hidden">
+    <Box flexDirection="column" paddingX={1} paddingY={1} height={listHeight} overflow="hidden">
       {searchActive && (
         <Box flexDirection="column" marginBottom={1}>
           <Box>
@@ -800,7 +811,7 @@ export function TranscriptionList({
 
   // Preview panel for wide mode — fixed height prevents layout jumps on load
   const previewWidth = Math.floor(terminal.columns * 0.6) - 2;
-  const previewHeight = availableRows;
+  const previewHeight = listHeight;
   const previewPanel = (
     <Box flexDirection="column" paddingX={1} paddingY={1} height={previewHeight} overflow="hidden">
       {previewData ? (
