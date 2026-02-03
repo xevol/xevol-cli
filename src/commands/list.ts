@@ -40,6 +40,7 @@ interface ListOptions {
   csv?: boolean;
   status?: string;
   sort?: string;
+  search?: string;
 }
 
 function normalizeListResponse(data: Record<string, unknown>) {
@@ -86,11 +87,13 @@ export function registerListCommand(program: Command): void {
     .option("--csv", "CSV output")
     .option("--status <status>", "Filter by status (complete, pending, error)")
     .option("--sort <field>", "Sort field (e.g. createdAt:desc, title:asc)")
+    .option("--search <query>", "Search by title")
     .addHelpText('after', `
 Examples:
   $ xevol list
   $ xevol list --limit 5 --page 2
   $ xevol list --status complete --csv
+  $ xevol list --search "react tutorial"
   $ xevol list --json`)
     .action(async (options: ListOptions, command) => {
       try {
@@ -106,7 +109,7 @@ Examples:
 
         const apiUrl = resolveApiUrl(config);
         const response = (await apiFetch("/v1/transcriptions", {
-          query: { page: options.page, limit: options.limit, status: options.status, sort: options.sort },
+          query: { page: options.page, limit: options.limit, status: options.status, sort: options.sort, q: options.search },
           token,
           apiUrl,
         })) as Record<string, unknown>;
