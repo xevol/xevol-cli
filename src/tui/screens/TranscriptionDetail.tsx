@@ -11,9 +11,12 @@ import { pickValue } from "../../lib/utils";
 import { formatDuration } from "../../lib/output";
 import { openUrl } from "../utils/openUrl";
 import { wrapText } from "../utils/wrapText";
+import { renderMarkdownLines } from "../utils/renderMarkdown";
 import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
+import { addToHistory } from "../../lib/history";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
+import { copyToClipboard } from "../utils/clipboard";
 import type { NavigationState } from "../hooks/useNavigation";
 import type { Hint } from "../components/Footer";
 
@@ -59,6 +62,22 @@ function formatCreatedAt(raw?: string): string {
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
+}
+
+/** Extract a short one-line description from the full prompt description. */
+function shortDescription(desc: string | undefined, maxLen = 60): string {
+  if (!desc) return "";
+  // Strip markdown headers and formatting
+  let clean = desc.replace(/^#+\s+.*/gm, "").replace(/[*_`#]/g, "").trim();
+  // Take first sentence (up to first period or maxLen)
+  const periodIdx = clean.indexOf(".");
+  if (periodIdx > 0 && periodIdx < maxLen) {
+    clean = clean.slice(0, periodIdx + 1);
+  } else if (clean.length > maxLen) {
+    clean = `${clean.slice(0, maxLen)}…`;
+  }
+  // Collapse whitespace
+  return clean.replace(/\s+/g, " ").trim();
 }
 
 /** Sort prompts: featured first (in FEATURED order), then the rest alphabetically. */
@@ -197,6 +216,13 @@ export function TranscriptionDetail({
 
   const title = pickValue(analysis ?? {}, ["title", "videoTitle", "name"]) ?? "Untitled";
   const channel = pickValue(analysis ?? {}, ["channel", "channelTitle", "author"]) ?? "Unknown";
+
+  // Track in local history when detail loads
+  useEffect(() => {
+    if (analysis && title && title !== "Untitled" && id) {
+      void addToHistory(id, title);
+    }
+  }, [analysis, title, id]);
   const status = pickValue(analysis ?? {}, ["status", "state"]) ?? "—";
   const duration = formatDuration(
     (analysis?.duration as number | string | undefined) ??
@@ -213,12 +239,12 @@ export function TranscriptionDetail({
 
   const contentWidth = Math.max(20, terminal.columns - 4);
   const transcriptLines = useMemo(
-    () => wrapText(transcript || "No transcript content available.", contentWidth),
+    () => renderMarkdownLines(transcript || "No transcript content available.", contentWidth),
     [transcript, contentWidth],
   );
 
   const spikeContentLines = useMemo(
-    () => wrapText(spikeContent || "", contentWidth),
+    () => renderMarkdownLines(spikeContent || "", contentWidth),
     [spikeContent, contentWidth],
   );
 
@@ -358,6 +384,7 @@ export function TranscriptionDetail({
       setFooterHints([
         ...common,
         { key: "↑/↓", description: "scroll" },
+        { key: "y", description: "copy" },
         { key: "e", description: "export" },
         { key: "o", description: "open" },
         { key: "r", description: "refresh" },
@@ -367,6 +394,7 @@ export function TranscriptionDetail({
       setFooterHints([
         ...common,
         { key: "↑/↓", description: "scroll" },
+        { key: "y", description: "copy" },
         { key: "Esc", description: "back to prompts" },
       ]);
     } else {
@@ -486,12 +514,26 @@ export function TranscriptionDetail({
         handleOpen();
         return;
       }
+      if (lower === "y") {
+        if (transcript) {
+          void copyToClipboard(transcript).then((ok) => {
+            if (ok) setNotice("Copied transcript to clipboard");
+          });
+        }
+        return;
+      }
     }
 
     // Spikes tab controls
     if (activeTab === "spikes") {
       if (spikeContent !== null) {
-        // Viewing spike content — scroll only
+        // Viewing spike content
+        if (lower === "y" && spikeContent) {
+          void copyToClipboard(spikeContent).then((ok) => {
+            if (ok) setNotice("Copied spike content to clipboard");
+          });
+          return;
+        }
         if (key.upArrow || lower === "k") {
           userScrolledRef.current = true;
           setScrollOffset((prev) => Math.max(0, prev - 1));
@@ -618,10 +660,18 @@ export function TranscriptionDetail({
                   );
                   const visible = prompts.slice(windowStart, windowStart + maxVisible);
 
+                  // Calculate max name length for alignment
+                  const maxNameLen = Math.max(...visible.map((p) => p.name.length), 0);
+                  const nameColWidth = Math.min(maxNameLen + 1, 20);
+
                   return visible.map((prompt, i) => {
                     const realIndex = windowStart + i;
                     const isSelected = realIndex === promptSelectedIndex;
                     const isFeatured = FEATURED_PROMPT_IDS.includes(prompt.id);
+                    const desc = shortDescription(prompt.description);
+                    const prefixLen = 2 + 2 + nameColWidth; // cursor + star + name
+                    const descMaxLen = Math.max(0, contentWidth - prefixLen - 2);
+                    const truncDesc = desc.length > descMaxLen ? `${desc.slice(0, descMaxLen)}…` : desc;
 
                     return (
                       <Box key={prompt.id}>
@@ -632,8 +682,11 @@ export function TranscriptionDetail({
                         </Box>
                         <Box flexDirection="row">
                           <Text color={isSelected ? colors.primary : undefined}>
-                            {isFeatured ? "★ " : "  "}{prompt.name}
+                            {isFeatured ? "★ " : "  "}{prompt.name.padEnd(nameColWidth)}
                           </Text>
+                          {truncDesc ? (
+                            <Text color={colors.secondary}> {truncDesc}</Text>
+                          ) : null}
                         </Box>
                       </Box>
                     );

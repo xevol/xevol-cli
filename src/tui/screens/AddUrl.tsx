@@ -2,12 +2,15 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { Spinner } from "../components/Spinner";
+import InkSpinner from "ink-spinner";
 import { colors } from "../theme";
 import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
 import { extractId, extractStatus, pickValue } from "../../lib/utils";
 import { wrapText } from "../utils/wrapText";
+import { renderMarkdownLines } from "../utils/renderMarkdown";
+import { copyToClipboard } from "../utils/clipboard";
 import type { Hint } from "../components/Footer";
 
 interface TerminalSize {
@@ -57,6 +60,21 @@ function extractChunk(event: SSEEvent): string | null {
   return null;
 }
 
+interface PhaseTimer {
+  startedAt: number;
+  elapsed: number;
+  done: boolean;
+}
+
+const PHASE_ORDER: Phase[] = ["submitting", "processing", "creating-spike", "streaming"];
+const PHASE_LABELS: Record<string, string> = {
+  submitting: "Submitting",
+  processing: "Transcribing",
+  "creating-spike": "Analyzing",
+  streaming: "Streaming",
+  done: "Done",
+};
+
 export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.Element {
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("input");
@@ -65,6 +83,72 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
   const [streamContent, setStreamContent] = useState("");
   const [scrollOffset, setScrollOffset] = useState(0);
   const [transcriptionTitle, setTranscriptionTitle] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 3000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
+  const [phaseTimers, setPhaseTimers] = useState<Record<string, PhaseTimer>>({});
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+  const phaseTimerInterval = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Track phase transitions with elapsed time
+  const startPhaseTimer = useCallback((phaseName: string) => {
+    setPhaseTimers((prev) => {
+      // Mark all previous phases as done
+      const updated = { ...prev };
+      for (const key of Object.keys(updated)) {
+        if (!updated[key].done) {
+          updated[key] = { ...updated[key], elapsed: Date.now() - updated[key].startedAt, done: true };
+        }
+      }
+      updated[phaseName] = { startedAt: Date.now(), elapsed: 0, done: false };
+      return updated;
+    });
+  }, []);
+
+  const finishAllTimers = useCallback(() => {
+    setPhaseTimers((prev) => {
+      const updated = { ...prev };
+      for (const key of Object.keys(updated)) {
+        if (!updated[key].done) {
+          updated[key] = { ...updated[key], elapsed: Date.now() - updated[key].startedAt, done: true };
+        }
+      }
+      return updated;
+    });
+  }, []);
+
+  // Tick active timer every second
+  useEffect(() => {
+    if (phase === "input" || phase === "done" || phase === "error") {
+      if (phaseTimerInterval.current) {
+        clearInterval(phaseTimerInterval.current);
+        phaseTimerInterval.current = null;
+      }
+      return;
+    }
+    phaseTimerInterval.current = setInterval(() => {
+      setPhaseTimers((prev) => {
+        const updated = { ...prev };
+        for (const key of Object.keys(updated)) {
+          if (!updated[key].done) {
+            updated[key] = { ...updated[key], elapsed: Date.now() - updated[key].startedAt };
+          }
+        }
+        return updated;
+      });
+    }, 1000);
+    return () => {
+      if (phaseTimerInterval.current) {
+        clearInterval(phaseTimerInterval.current);
+        phaseTimerInterval.current = null;
+      }
+    };
+  }, [phase]);
 
   // Update footer hints based on phase
   useEffect(() => {
@@ -76,6 +160,7 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
     } else if (phase === "done") {
       setFooterHints([
         { key: "↑/↓", description: "scroll" },
+        { key: "y", description: "copy" },
         { key: "Esc", description: "back" },
       ]);
     } else if (phase === "error") {
@@ -86,15 +171,18 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
     } else if (phase === "streaming") {
       setFooterHints([
         { key: "↑/↓", description: "scroll" },
+        { key: "y", description: "copy" },
         { key: "Esc", description: "back" },
       ]);
     } else {
-      setFooterHints([]);
+      setFooterHints([
+        { key: "Esc", description: "cancel" },
+      ]);
     }
   }, [phase, setFooterHints]);
 
   const contentWidth = Math.max(20, terminal.columns - 4);
-  const contentLines = wrapText(streamContent || " ", contentWidth);
+  const contentLines = renderMarkdownLines(streamContent || " ", contentWidth);
   const reservedRows = 10;
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
   const maxOffset = Math.max(0, contentLines.length - contentHeight);
@@ -108,6 +196,9 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
   }, [maxOffset, phase]);
 
   const runPipeline = useCallback(async (youtubeUrl: string) => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const config = (await readConfig()) ?? {};
       const { token, expired } = resolveToken(config);
@@ -124,6 +215,7 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
 
       // 1. Submit URL
       setPhase("submitting");
+      startPhaseTimer("submitting");
       setStatusText("Submitting URL…");
 
       const addResponse = (await apiFetch("/v1/add", {
@@ -132,27 +224,36 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         apiUrl,
       })) as Record<string, unknown>;
 
-      const transcriptionId = extractId(addResponse);
-      if (!transcriptionId) {
+      if (controller.signal.aborted) return;
+
+      const tid = extractId(addResponse);
+      if (!tid) {
         setErrorText("No transcription ID returned from API.");
         setPhase("error");
         return;
       }
+      setTranscriptionId(tid);
+
+      // Show title from add response if available
+      const addTitle = pickValue(addResponse, ["title", "videoTitle", "name"]);
+      if (addTitle) setTranscriptionTitle(addTitle);
 
       // 2. Poll for completion
       setPhase("processing");
+      startPhaseTimer("processing");
       const maxAttempts = 120;
       let finalResponse: Record<string, unknown> | null = null;
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const statusResponse = (await apiFetch(`/v1/status/${transcriptionId}`, {
+        if (controller.signal.aborted) return;
+
+        const statusResponse = (await apiFetch(`/v1/status/${tid}`, {
           token,
           apiUrl,
         })) as Record<string, unknown>;
 
         const currentStatus = extractStatus(statusResponse)?.toLowerCase() ?? "pending";
-        const elapsed = attempt * 5;
-        setStatusText(`Processing… (${elapsed}s)`);
+        setStatusText(`Processing… (${currentStatus})`);
 
         if (currentStatus.includes("complete")) {
           const titleVal = pickValue(statusResponse, ["title", "videoTitle", "name"]);
@@ -170,6 +271,8 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }
 
+      if (controller.signal.aborted) return;
+
       if (!finalResponse) {
         setErrorText("Timed out waiting for transcription to complete.");
         setPhase("error");
@@ -178,14 +281,17 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
 
       // 3. Create spike
       setPhase("creating-spike");
+      startPhaseTimer("creating-spike");
       setStatusText("Creating spike…");
 
-      const spikeResponse = (await apiFetch(`/spikes/${transcriptionId}`, {
+      const spikeResponse = (await apiFetch(`/spikes/${tid}`, {
         method: "POST",
         body: { promptId: "formatted", outputLang: "en" },
         token,
         apiUrl,
       })) as Record<string, unknown>;
+
+      if (controller.signal.aborted) return;
 
       const spikeId = spikeResponse.spikeId as string | undefined;
 
@@ -195,6 +301,7 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         (spikeResponse.markdown as string);
       if (cachedContent) {
         setStreamContent(cachedContent);
+        finishAllTimers();
         setPhase("done");
         return;
       }
@@ -207,9 +314,9 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
 
       // 4. Stream spike content
       setPhase("streaming");
+      startPhaseTimer("streaming");
       setStatusText("Streaming content…");
 
-      const controller = new AbortController();
       let fullContent = "";
 
       const streamPaths = [`/stream/spikes/${spikeId}`, `/spikes/stream/${spikeId}`];
@@ -217,6 +324,7 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
       let lastError: Error | null = null;
 
       for (const spath of streamPaths) {
+        if (controller.signal.aborted) return;
         try {
           for await (const event of streamSSE(spath, {
             token,
@@ -239,9 +347,11 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         }
       }
 
+      if (controller.signal.aborted) return;
+
       if (!streamed && lastError) {
-        // If streaming failed but we got some content, show it
         if (fullContent) {
+          finishAllTimers();
           setPhase("done");
         } else {
           setErrorText(lastError.message);
@@ -250,12 +360,16 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
         return;
       }
 
+      finishAllTimers();
       setPhase("done");
     } catch (err) {
+      if (controller.signal.aborted) return;
       setErrorText((err as Error).message);
       setPhase("error");
+    } finally {
+      abortControllerRef.current = null;
     }
-  }, []);
+  }, [startPhaseTimer, finishAllTimers]);
 
   const handleSubmit = useCallback(
     (value: string) => {
@@ -294,9 +408,29 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
       return;
     }
 
+    // Allow Esc to cancel during processing phases
+    if (phase === "submitting" || phase === "processing" || phase === "creating-spike") {
+      if (key.escape) {
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        setPhase("input");
+        setStatusText("");
+        setPhaseTimers({});
+        setTranscriptionId(null);
+        return;
+      }
+      return;
+    }
+
     if (phase === "done" || phase === "streaming") {
       if (key.escape || key.backspace) {
         onBack();
+        return;
+      }
+      if (input.toLowerCase() === "y" && streamContent) {
+        void copyToClipboard(streamContent).then((ok) => {
+          if (ok) setNotice("Copied to clipboard");
+        });
         return;
       }
       if (key.upArrow || input.toLowerCase() === "k") {
@@ -334,8 +468,43 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
       )}
 
       {(phase === "submitting" || phase === "processing" || phase === "creating-spike") && (
-        <Box marginTop={1}>
-          <Spinner label={statusText} />
+        <Box marginTop={1} flexDirection="column">
+          {transcriptionId && (
+            <Text color={colors.secondary}>ID: {transcriptionId}</Text>
+          )}
+          {transcriptionTitle && (
+            <Text color={colors.secondary}>{transcriptionTitle}</Text>
+          )}
+          <Box marginTop={1} flexDirection="column">
+            {PHASE_ORDER.map((p) => {
+              const timer = phaseTimers[p];
+              const isActive = p === phase;
+              const isDone = timer?.done === true;
+              const elapsed = timer ? Math.floor(timer.elapsed / 1000) : 0;
+
+              let icon = "◯";
+              if (isDone) icon = "✓";
+
+              const label = PHASE_LABELS[p] ?? p;
+              const timeStr = timer ? ` (${elapsed}s)` : "";
+
+              if (isActive) {
+                return (
+                  <Box key={p} flexDirection="row">
+                    <Text color={colors.primary}><InkSpinner type="dots" /> {label}{timeStr}</Text>
+                  </Box>
+                );
+              }
+              return (
+                <Box key={p} flexDirection="row">
+                  <Text color={isDone ? colors.success : colors.secondary}>{icon} {label}{timeStr}</Text>
+                </Box>
+              );
+            })}
+          </Box>
+          <Box marginTop={1}>
+            <Text color={colors.secondary}>Press Esc to cancel</Text>
+          </Box>
         </Box>
       )}
 
@@ -373,6 +542,12 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
           <Box marginTop={1}>
             <Text color={colors.secondary}>Press r to retry, Esc to go back</Text>
           </Box>
+        </Box>
+      )}
+
+      {notice && (
+        <Box marginTop={1}>
+          <Text color={colors.secondary}>{notice}</Text>
         </Box>
       )}
     </Box>

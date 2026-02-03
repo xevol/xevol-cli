@@ -5,11 +5,13 @@ import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
 import { pickValueOrDash } from "../../lib/utils";
 import { formatTimeAgo } from "../utils/time";
+import { getHistory, type HistoryEntry } from "../../lib/history";
 import type { NavigationState } from "../hooks/useNavigation";
 import type { Hint } from "../components/Footer";
 
 // Module-level cache so navigating away and back doesn't re-fetch
 let _cachedRecent: Record<string, unknown> | null = null;
+let _cachedHistory: HistoryEntry[] | null = null;
 
 interface DashboardProps {
   version: string;
@@ -59,6 +61,22 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
   const { exit } = useApp();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
+  // Local history — instant, no API call
+  const [historyItems, setHistoryItems] = useState<HistoryEntry[]>(_cachedHistory ?? []);
+  const [historyLoaded, setHistoryLoaded] = useState(!!_cachedHistory);
+
+  useEffect(() => {
+    void (async () => {
+      const history = await getHistory();
+      _cachedHistory = history;
+      setHistoryItems(history);
+      setHistoryLoaded(true);
+    })();
+  }, []);
+
+  const hasLocalHistory = historyItems.length > 0;
+
+  // API recent — only fetch if no local history
   const {
     data: rawRecentData,
     loading: rawRecentLoading,
@@ -97,13 +115,22 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
   }, [setFooterHints, setFooterStatus]);
 
   const recentItems = useMemo<RecentItem[]>(() => {
+    // Prefer local history (instant, no API call needed)
+    if (hasLocalHistory) {
+      return historyItems.slice(0, 3).map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        created: formatTimeAgo(entry.viewedAt),
+      }));
+    }
+    // Fallback to API recent
     const rawItems = normalizeRecent(recentData ?? {});
     return rawItems.slice(0, 3).map((item) => ({
       id: pickValueOrDash(item, ["id", "transcriptionId", "_id"]),
       title: pickValueOrDash(item, ["title", "videoTitle", "name"]),
       created: formatTimeAgo(item.createdAt as string | undefined),
     }));
-  }, [recentData]);
+  }, [hasLocalHistory, historyItems, recentData]);
 
   const selectableCount = MENU_ITEMS.length + recentItems.length;
 
@@ -192,23 +219,23 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
       </Box>
 
       <Box flexDirection="column">
-        <Text color={colors.secondary}>Recent transcriptions</Text>
-        {recentLoading && (
+        <Text color={colors.secondary}>{hasLocalHistory ? "Recently viewed" : "Recent transcriptions"}</Text>
+        {!hasLocalHistory && recentLoading && (
           <Box marginTop={1}>
             <Spinner label="Loading recent…" />
           </Box>
         )}
-        {recentError && (
+        {!hasLocalHistory && recentError && (
           <Box marginTop={1}>
             <Text color={colors.error}>{recentError} (press r to retry)</Text>
           </Box>
         )}
-        {!recentLoading && !recentError && recentItems.length === 0 && (
+        {!hasLocalHistory && !recentLoading && !recentError && recentItems.length === 0 && (
           <Box marginTop={1}>
             <Text color={colors.secondary}>No recent transcriptions.</Text>
           </Box>
         )}
-        {!recentLoading && !recentError && recentItems.length > 0 && (
+        {(hasLocalHistory || (!recentLoading && !recentError)) && recentItems.length > 0 && (
           <Box flexDirection="column" marginTop={1}>
             {recentItems.map((item, index) => {
               const absoluteIndex = MENU_ITEMS.length + index;

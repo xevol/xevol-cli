@@ -8,6 +8,7 @@ import { usePagination } from "../hooks/usePagination";
 import { StatusBadge } from "../components/StatusBadge";
 import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
+import { fuzzyMatch, highlightMatch } from "../utils/fuzzyMatch";
 import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { pickValueOrDash } from "../../lib/utils";
@@ -15,6 +16,8 @@ import { formatDurationCompact } from "../../lib/output";
 import { openUrl } from "../utils/openUrl";
 import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import { formatTimeAgo } from "../utils/time";
+import { renderMarkdownLines } from "../utils/renderMarkdown";
+import { SplitLayout } from "../components/SplitLayout";
 import type { NavigationState } from "../hooks/useNavigation";
 import type { Hint } from "../components/Footer";
 
@@ -106,6 +109,12 @@ export function TranscriptionList({
   const [isBatchExporting, setIsBatchExporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Preview panel state for wide mode
+  const [previewData, setPreviewData] = useState<{ title: string; summary: string; status: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewCacheRef = useRef<Map<string, { title: string; summary: string; status: string }>>(new Map());
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(null), 5000);
@@ -167,6 +176,8 @@ export function TranscriptionList({
     };
   }, [searchActive, searchDraft, setPagination]);
 
+  const isWide = terminal.columns >= 120;
+
   const normalized = useMemo(() => normalizeListResponse(data ?? {}), [data]);
 
   // Only update metadata from API response — never feed page/limit back (causes loops)
@@ -178,7 +189,7 @@ export function TranscriptionList({
   }, [normalized.total, normalized.totalPages, setPagination]);
 
   const listItems = useMemo(() => {
-    return normalized.items.map((item) => {
+    const items = normalized.items.map((item) => {
       const durationRaw =
         (item.duration as number | string | undefined) ??
         (item.durationSec as number | undefined) ??
@@ -188,12 +199,33 @@ export function TranscriptionList({
       return {
         id: pickValueOrDash(item, ["id", "transcriptionId", "_id"]),
         title: pickValueOrDash(item, ["title", "videoTitle", "name"]),
+        channel: pickValueOrDash(item, ["channel", "channelTitle", "author"]),
         status: pickValueOrDash(item, ["status", "state"]),
         duration: formatDurationCompact(durationRaw ?? "—"),
         created: formatTimeAgo(item.createdAt as string | undefined),
       };
     });
-  }, [normalized.items]);
+
+    // Client-side fuzzy filtering when search is active
+    if (!searchQuery) return items.map((item) => ({ ...item, titleHighlighted: item.title, fuzzyScore: 0, titleIndices: [] as number[] }));
+
+    return items
+      .map((item) => {
+        const titleResult = fuzzyMatch(searchQuery, item.title);
+        const channelResult = fuzzyMatch(searchQuery, item.channel);
+        const bestMatch = titleResult.score >= channelResult.score ? titleResult : channelResult;
+        const matched = titleResult.match || channelResult.match;
+        return {
+          ...item,
+          titleHighlighted: titleResult.match ? highlightMatch(item.title, titleResult.indices) : item.title,
+          titleIndices: titleResult.match ? titleResult.indices : [],
+          fuzzyScore: bestMatch.score,
+          matched,
+        };
+      })
+      .filter((item) => item.matched)
+      .sort((a, b) => b.fuzzyScore - a.fuzzyScore);
+  }, [normalized.items, searchQuery]);
 
   useEffect(() => {
     if (selectedIndex >= listItems.length) {
@@ -204,6 +236,53 @@ export function TranscriptionList({
   const selectedItem = listItems[selectedIndex];
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.length;
+
+  // Debounced preview fetch for wide mode
+  useEffect(() => {
+    if (!isWide || !selectedItem) {
+      setPreviewData(null);
+      return;
+    }
+
+    // Check cache first
+    const cached = previewCacheRef.current.get(selectedItem.id);
+    if (cached) {
+      setPreviewData(cached);
+      return;
+    }
+
+    setPreviewLoading(true);
+    previewTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const config = (await readConfig()) ?? {};
+          const { token } = resolveToken(config);
+          if (!token) { setPreviewLoading(false); return; }
+          const apiUrl = resolveApiUrl(config);
+          const response = (await apiFetch(`/v1/analysis/${selectedItem.id}`, {
+            token,
+            apiUrl,
+          })) as Record<string, unknown>;
+          const analysis = unwrapAnalysis(response);
+          const preview = {
+            title: pickValueOrDash(analysis ?? {}, ["title", "videoTitle", "name"]),
+            summary: ((analysis?.cleanContent as string) ?? (analysis?.content as string) ?? (analysis?.transcript as string) ?? "").slice(0, 500),
+            status: pickValueOrDash(analysis ?? {}, ["status", "state"]),
+          };
+          previewCacheRef.current.set(selectedItem.id, preview);
+          setPreviewData(preview);
+        } catch {
+          setPreviewData(null);
+        } finally {
+          setPreviewLoading(false);
+        }
+      })();
+    }, 300);
+
+    return () => {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    };
+  }, [isWide, selectedItem?.id]);
 
   const reservedRows =
     6 +
@@ -503,7 +582,7 @@ export function TranscriptionList({
     }
   });
 
-  return (
+  const listPanel = (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       {searchActive && (
         <Box flexDirection="column" marginBottom={1}>
@@ -558,7 +637,7 @@ export function TranscriptionList({
                 </Box>
                 <Box flexDirection="column" flexGrow={1}>
                   <Box flexDirection="row" justifyContent="space-between">
-                    <Text color={isSelected ? colors.primary : undefined}>{item.title}</Text>
+                    <Text color={isSelected ? colors.primary : undefined}>{searchQuery && item.titleIndices.length > 0 ? item.titleHighlighted : item.title}</Text>
                     <Text color={colors.secondary}>{item.created}</Text>
                   </Box>
                   <Box flexDirection="row">
@@ -616,4 +695,41 @@ export function TranscriptionList({
       </Box>
     </Box>
   );
+
+  // Preview panel for wide mode
+  const previewWidth = Math.floor(terminal.columns * 0.6) - 2;
+  const previewPanel = (
+    <Box flexDirection="column" paddingX={1} paddingY={1}>
+      {previewLoading && <Spinner label="Loading preview…" />}
+      {!previewLoading && previewData && (
+        <Box flexDirection="column">
+          <Text bold color={colors.primary}>{previewData.title}</Text>
+          <Box marginTop={1} flexDirection="row">
+            <StatusBadge status={previewData.status} />
+            <Text color={colors.secondary}> {previewData.status}</Text>
+          </Box>
+          {previewData.summary ? (
+            <Box marginTop={1} flexDirection="column">
+              <Text>{renderMarkdownLines(previewData.summary, previewWidth).slice(0, Math.max(4, terminal.rows - 10)).join("\n")}</Text>
+            </Box>
+          ) : null}
+        </Box>
+      )}
+      {!previewLoading && !previewData && (
+        <Text color={colors.secondary}>Select a transcription to preview</Text>
+      )}
+    </Box>
+  );
+
+  if (isWide) {
+    return (
+      <SplitLayout
+        left={listPanel}
+        right={previewPanel}
+        terminal={terminal}
+      />
+    );
+  }
+
+  return listPanel;
 }
