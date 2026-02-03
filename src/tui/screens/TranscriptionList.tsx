@@ -275,26 +275,25 @@ export function TranscriptionList({
       ? items.filter((item) => !deletedIds.includes(item.id))
       : items;
 
-    // Client-side fuzzy filtering when search is active
+    // When no search query, return items without highlighting
     if (!searchQuery) return filteredItems.map((item) => ({ ...item, titleHighlighted: item.title, fuzzyScore: 0, titleIndices: [] as number[] }));
 
-    return filteredItems
-      .map((item) => {
-        const titleResult = fuzzyMatch(searchQuery, item.title);
-        const channelResult = fuzzyMatch(searchQuery, item.channel);
-        const bestMatch = titleResult.score >= channelResult.score ? titleResult : channelResult;
-        const matched = titleResult.match || channelResult.match;
-        return {
-          ...item,
-          titleHighlighted: titleResult.match ? highlightMatch(item.title, titleResult.indices) : item.title,
-          titleIndices: titleResult.match ? titleResult.indices : [],
-          fuzzyScore: bestMatch.score,
-          matched,
-        };
-      })
-      .filter((item) => item.matched)
-      .sort((a, b) => b.fuzzyScore - a.fuzzyScore);
+    // Server already filtered via `q` param — just add highlighting, don't filter again
+    return filteredItems.map((item) => {
+      const titleResult = fuzzyMatch(searchQuery, item.title);
+      return {
+        ...item,
+        titleHighlighted: titleResult.match ? highlightMatch(item.title, titleResult.indices) : item.title,
+        titleIndices: titleResult.match ? titleResult.indices : [],
+        fuzzyScore: 0,
+      };
+    });
   }, [normalized.items, searchQuery, deletedIds]);
+
+  // Reset cursor to top when search results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (selectedIndex >= listItems.length) {
@@ -305,6 +304,12 @@ export function TranscriptionList({
   const selectedItem = listItems[selectedIndex];
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.length;
+
+  // Clear preview when search changes to avoid stale data
+  useEffect(() => {
+    setPreviewData(null);
+    setPreviewLoading(false);
+  }, [searchQuery]);
 
   // Debounced preview fetch for wide mode with AbortController
   useEffect(() => {
