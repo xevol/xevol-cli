@@ -110,25 +110,26 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     setFooterStatus(undefined);
   }, [setFooterHints, setFooterStatus]);
 
-  const recentItems = useMemo<RecentItem[]>(() => {
-    // Prefer local history (instant, no API call needed)
-    if (hasLocalHistory) {
-      return historyItems.slice(0, 3).map((entry) => ({
-        id: entry.id,
-        title: entry.title,
-        created: formatTimeAgo(entry.viewedAt),
-      }));
-    }
-    // Fallback to API recent
+  // Recently Viewed — from local history
+  const recentlyViewed = useMemo<RecentItem[]>(() => {
+    return historyItems.slice(0, 3).map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      created: formatTimeAgo(entry.viewedAt),
+    }));
+  }, [historyItems]);
+
+  // Recently Added — from API
+  const recentlyAdded = useMemo<RecentItem[]>(() => {
     const rawItems = normalizeRecent(recentData ?? {});
     return rawItems.slice(0, 3).map((item) => ({
       id: pickValueOrDash(item, ["id", "transcriptionId", "_id"]),
       title: pickValueOrDash(item, ["title", "videoTitle", "name"]),
       created: formatTimeAgo(item.createdAt as string | undefined),
     }));
-  }, [hasLocalHistory, historyItems, recentData]);
+  }, [recentData]);
 
-  const selectableCount = MENU_ITEMS.length + recentItems.length;
+  const selectableCount = MENU_ITEMS.length + recentlyViewed.length + recentlyAdded.length;
 
   useEffect(() => {
     if (selectedIndex >= selectableCount) {
@@ -189,10 +190,18 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
           exit();
         }
       } else {
-        const recentIndex = selectedIndex - MENU_ITEMS.length;
-        const recentItem = recentItems[recentIndex];
-        if (recentItem?.id) {
-          navigation.push("detail", { id: recentItem.id });
+        const afterMenu = selectedIndex - MENU_ITEMS.length;
+        if (afterMenu < recentlyViewed.length) {
+          const item = recentlyViewed[afterMenu];
+          if (item?.id) {
+            navigation.push("detail", { id: item.id });
+          }
+        } else {
+          const addedIndex = afterMenu - recentlyViewed.length;
+          const item = recentlyAdded[addedIndex];
+          if (item?.id) {
+            navigation.push("detail", { id: item.id });
+          }
         }
       }
     }
@@ -214,27 +223,62 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
         })}
       </Box>
 
+      {/* Recently Viewed — local history */}
       <Box flexDirection="column">
-        <Text color={colors.secondary}>{hasLocalHistory ? "Recently viewed" : "Recent transcriptions"}</Text>
-        {!hasLocalHistory && recentLoading && (
+        <Text color={colors.secondary}>Recently viewed</Text>
+        {!historyLoaded && (
+          <Box marginTop={1}>
+            <Spinner label="Loading history…" />
+          </Box>
+        )}
+        {historyLoaded && recentlyViewed.length === 0 && (
+          <Box marginTop={1}>
+            <Text color={colors.secondary}>No recently viewed.</Text>
+          </Box>
+        )}
+        {recentlyViewed.length > 0 && (
+          <Box flexDirection="column" marginTop={1}>
+            {recentlyViewed.map((item, index) => {
+              const absoluteIndex = MENU_ITEMS.length + index;
+              const isSelected = selectedIndex === absoluteIndex;
+              return (
+                <Box key={item.id} flexDirection="row">
+                  <Box width={2}>
+                    <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
+                  </Box>
+                  <Box flexDirection="row" justifyContent="space-between" flexGrow={1}>
+                    <Text color={isSelected ? colors.primary : undefined}>{item.title}</Text>
+                    <Text color={colors.secondary}>{item.created}</Text>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
+
+      {/* Recently Added — from API */}
+      <Box flexDirection="column" marginTop={1}>
+        <Text color={colors.secondary}>Recently added</Text>
+        {recentLoading && (
           <Box marginTop={1}>
             <Spinner label="Loading recent…" />
           </Box>
         )}
-        {!hasLocalHistory && recentError && (
+        {recentError && (
           <Box marginTop={1}>
             <Text color={colors.error}>{recentError} (press r to retry)</Text>
           </Box>
         )}
-        {!hasLocalHistory && !recentLoading && !recentError && recentItems.length === 0 && (
+        {!recentLoading && !recentError && recentlyAdded.length === 0 && (
           <Box marginTop={1}>
             <Text color={colors.secondary}>No recent transcriptions.</Text>
           </Box>
         )}
-        {(hasLocalHistory || (!recentLoading && !recentError)) && recentItems.length > 0 && (
+        {!recentLoading && !recentError && recentlyAdded.length > 0 && (
           <Box flexDirection="column" marginTop={1}>
-            {recentItems.map((item, index) => {
-              const absoluteIndex = MENU_ITEMS.length + index;
+            {recentlyAdded.map((item, index) => {
+              const absoluteIndex = MENU_ITEMS.length + recentlyViewed.length + index;
               const isSelected = selectedIndex === absoluteIndex;
               return (
                 <Box key={item.id} flexDirection="row">
