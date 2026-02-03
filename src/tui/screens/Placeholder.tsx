@@ -1,13 +1,22 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import { colors } from "../theme";
+import type { Hint } from "../components/Footer";
 
 interface PlaceholderProps {
   title: string;
   onBack: () => void;
+  setFooterHints: (hints: Hint[]) => void;
 }
 
-export function Placeholder({ title, onBack }: PlaceholderProps): JSX.Element {
+export function Placeholder({ title, onBack, setFooterHints }: PlaceholderProps): JSX.Element {
+  useEffect(() => {
+    setFooterHints([
+      { key: "Esc", description: "back" },
+      { key: "q", description: "quit" },
+    ]);
+  }, [setFooterHints]);
+
   useInput((input, key) => {
     if (key.escape || key.backspace) {
       onBack();

@@ -1,6 +1,6 @@
 {
   "name": "xevol",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Xevol is a tool to consume, remix, make, publish, and offer systems, products, and workflows.",
   "type": "module",
   "bin": {
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node --minify --external react-devtools-core",
+    "build": "bun build src/index.ts --outdir dist --target node --minify",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
@@ -50,7 +50,7 @@
   },
   "homepage": "https://xevol.com",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "devDependencies": {
     "@types/bun": "latest",

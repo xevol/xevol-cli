@@ -1,14 +1,18 @@
-import React, { useMemo, useState } from "react";
-import { Box, Text, useApp } from "ink";
-import SelectInput from "ink-select-input";
+import React, { useEffect, useMemo, useState } from "react";
+import { Box, Text, useApp, useInput } from "ink";
 import { useApi } from "../hooks/useApi";
 import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
+import { pickValueOrDash } from "../../lib/utils";
+import { formatTimeAgo } from "../utils/time";
 import type { NavigationState } from "../hooks/useNavigation";
+import type { Hint } from "../components/Footer";
 
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
+  setFooterHints: (hints: Hint[]) => void;
+  setFooterStatus: (status?: string) => void;
 }
 
 const LOGO_LINES = [
@@ -29,16 +33,45 @@ const MENU_ITEMS: Array<{ label: string; value: MenuValue }> = [
   { label: "🚪 Quit", value: "quit" },
 ];
 
+interface RecentItem {
+  id: string;
+  title: string;
+  created: string;
+}
+
+type RawItem = Record<string, unknown>;
+
+function normalizeRecent(data: Record<string, unknown>): RawItem[] {
+  return (
+    (data.list as RawItem[] | undefined) ??
+    (data.data as RawItem[] | undefined) ??
+    (data.transcriptions as RawItem[] | undefined) ??
+    (data.items as RawItem[] | undefined) ??
+    (data.results as RawItem[] | undefined) ??
+    []
+  );
+}
+
 function buildUsageLines(data: Record<string, unknown>): string[] {
   const usage = (data.usage as Record<string, number>) ?? {};
   const limits = (data.limits as Record<string, number>) ?? {};
   const period = (data.period as string) ?? "month";
   const periodEnd = data.current_period_end as string | null | undefined;
+  const plan = (data.plan as string) ?? "free";
+  const status = (data.status as string) ?? "active";
+  const email =
+    (data.email as string | undefined) ??
+    (data.user as Record<string, unknown> | undefined)?.email?.toString() ??
+    "";
 
   const transcriptions = usage.transcriptions ?? 0;
   const limit = limits.transcriptions ?? "∞";
 
-  const lines = [`Usage: ${transcriptions} / ${limit} transcriptions (this ${period})`];
+  const lines: string[] = [];
+  if (email) lines.push(`Email: ${email}`);
+  lines.push(`Plan: ${plan}`);
+  lines.push(`Status: ${status}`);
+  lines.push(`Usage: ${transcriptions} / ${limit} transcriptions (this ${period})`);
 
   if (periodEnd) {
     const endDate = new Date(periodEnd);
@@ -51,33 +84,151 @@ function buildUsageLines(data: Record<string, unknown>): string[] {
   return lines;
 }
 
-export function Dashboard({ version, navigation }: DashboardProps): JSX.Element {
+export function Dashboard({ version, navigation, setFooterHints, setFooterStatus }: DashboardProps): JSX.Element {
   const { exit } = useApp();
   const [showUsage, setShowUsage] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const { data, loading, error } = useApi<Record<string, unknown>>("/auth/cli/status");
+  const {
+    data: statusData,
+    loading: statusLoading,
+    error: statusError,
+    refresh: refreshStatus,
+  } = useApi<Record<string, unknown>>("/auth/cli/status");
+
+  const {
+    data: recentData,
+    loading: recentLoading,
+    error: recentError,
+    refresh: refreshRecent,
+  } = useApi<Record<string, unknown>>(
+    "/v1/transcriptions",
+    {
+      query: { limit: 3 },
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void refreshRecent();
+    }, 30000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [refreshRecent]);
+
+  useEffect(() => {
+    setFooterHints([
+      { key: "↑/↓", description: "move" },
+      { key: "Enter", description: "select/toggle" },
+      { key: "r", description: "refresh" },
+      { key: "?", description: "help" },
+      { key: "q", description: "quit" },
+    ]);
+    setFooterStatus(undefined);
+  }, [setFooterHints, setFooterStatus]);
 
   const accountLine = useMemo(() => {
-    if (!data) return "";
+    if (!statusData) return "";
     const email =
-      (data.email as string | undefined) ??
-      (data.user as Record<string, unknown> | undefined)?.email?.toString();
-    const plan = (data.plan as string | undefined) ?? "";
+      (statusData.email as string | undefined) ??
+      (statusData.user as Record<string, unknown> | undefined)?.email?.toString();
+    const plan = (statusData.plan as string | undefined) ?? "";
 
     const parts: string[] = [];
     if (email) parts.push(email);
     if (plan) parts.push(`${plan} plan`);
 
     return parts.join(" · ");
-  }, [data]);
+  }, [statusData]);
 
-  const usageLines = useMemo(() => (data ? buildUsageLines(data) : []), [data]);
+  const usageLines = useMemo(() => (statusData ? buildUsageLines(statusData) : []), [statusData]);
+
+  const recentItems = useMemo<RecentItem[]>(() => {
+    const rawItems = normalizeRecent(recentData ?? {});
+    return rawItems.slice(0, 3).map((item) => ({
+      id: pickValueOrDash(item, ["id", "transcriptionId", "_id"]),
+      title: pickValueOrDash(item, ["title", "videoTitle", "name"]),
+      created: formatTimeAgo(item.createdAt as string | undefined),
+    }));
+  }, [recentData]);
+
+  const selectableCount = MENU_ITEMS.length + recentItems.length;
+
+  useEffect(() => {
+    if (selectedIndex >= selectableCount) {
+      setSelectedIndex(Math.max(0, selectableCount - 1));
+    }
+  }, [selectableCount, selectedIndex]);
+
+  useInput((input, key) => {
+    const lower = input.toLowerCase();
+    if (key.upArrow || lower === "k") {
+      if (selectableCount > 0) {
+        setSelectedIndex((prev) => Math.max(0, prev - 1));
+      }
+      return;
+    }
+
+    if (key.downArrow || lower === "j") {
+      if (selectableCount > 0) {
+        setSelectedIndex((prev) => Math.min(selectableCount - 1, prev + 1));
+      }
+      return;
+    }
+
+    if (lower === "r") {
+      void refreshStatus();
+      void refreshRecent();
+      return;
+    }
+
+    if (key.return) {
+      if (selectedIndex < MENU_ITEMS.length) {
+        const item = MENU_ITEMS[selectedIndex];
+        if (item.value === "transcriptions") {
+          setShowUsage(false);
+          navigation.push("list");
+          return;
+        }
+        if (item.value === "usage") {
+          setShowUsage((prev) => !prev);
+          return;
+        }
+        if (item.value === "workspaces") {
+          setShowUsage(false);
+          navigation.push("workspaces");
+          return;
+        }
+        if (item.value === "settings") {
+          setShowUsage(false);
+          navigation.push("settings");
+          return;
+        }
+        if (item.value === "help") {
+          setShowUsage(false);
+          navigation.push("help");
+          return;
+        }
+        if (item.value === "quit") {
+          exit();
+        }
+      } else {
+        const recentIndex = selectedIndex - MENU_ITEMS.length;
+        const recentItem = recentItems[recentIndex];
+        if (recentItem?.id) {
+          navigation.push("detail", { id: recentItem.id });
+        }
+      }
+    }
+  });
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       <Box flexDirection="column" marginBottom={1}>
-        {LOGO_LINES.map((line) => (
-          <Text key={line} color={colors.primary}>
+        {LOGO_LINES.map((line, i) => (
+          <Text key={`logo-${i}`} color={colors.primary}>
             {line}
           </Text>
         ))}
@@ -91,55 +242,36 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
         ) : null}
       </Box>
 
-      {loading && (
+      {statusLoading && (
         <Box marginBottom={1}>
           <Spinner label="Loading account…" />
         </Box>
       )}
-      {error && (
+      {statusError && (
         <Box marginBottom={1}>
-          <Text color={colors.error}>{error}</Text>
+          <Text color={colors.error}>{statusError} (press r to retry)</Text>
         </Box>
       )}
 
-      <SelectInput
-        items={MENU_ITEMS}
-        onSelect={(item) => {
-          if (item.value === "transcriptions") {
-            setShowUsage(false);
-            navigation.push("list");
-            return;
-          }
-          if (item.value === "usage") {
-            setShowUsage(true);
-            return;
-          }
-          if (item.value === "workspaces") {
-            setShowUsage(false);
-            navigation.push("workspaces");
-            return;
-          }
-          if (item.value === "settings") {
-            setShowUsage(false);
-            navigation.push("settings");
-            return;
-          }
-          if (item.value === "help") {
-            setShowUsage(false);
-            navigation.push("help");
-            return;
-          }
-          if (item.value === "quit") {
-            exit();
-          }
-        }}
-      />
+      <Box flexDirection="column" marginBottom={1}>
+        {MENU_ITEMS.map((item, index) => {
+          const isSelected = selectedIndex === index;
+          return (
+            <Box key={item.value} flexDirection="row">
+              <Box width={2}>
+                <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
+              </Box>
+              <Text color={isSelected ? colors.primary : undefined}>{item.label}</Text>
+            </Box>
+          );
+        })}
+      </Box>
 
       {showUsage && (
-        <Box flexDirection="column" marginTop={1}>
-          {loading ? (
+        <Box flexDirection="column" marginBottom={1}>
+          {statusLoading ? (
             <Spinner label="Loading usage…" />
-          ) : data ? (
+          ) : statusData ? (
             usageLines.map((line) => (
               <Text key={line} color={colors.secondary}>
                 {line}
@@ -150,6 +282,44 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
           )}
         </Box>
       )}
+
+      <Box flexDirection="column">
+        <Text color={colors.secondary}>Recent transcriptions</Text>
+        {recentLoading && (
+          <Box marginTop={1}>
+            <Spinner label="Loading recent…" />
+          </Box>
+        )}
+        {recentError && (
+          <Box marginTop={1}>
+            <Text color={colors.error}>{recentError} (press r to retry)</Text>
+          </Box>
+        )}
+        {!recentLoading && !recentError && recentItems.length === 0 && (
+          <Box marginTop={1}>
+            <Text color={colors.secondary}>No recent transcriptions.</Text>
+          </Box>
+        )}
+        {!recentLoading && !recentError && recentItems.length > 0 && (
+          <Box flexDirection="column" marginTop={1}>
+            {recentItems.map((item, index) => {
+              const absoluteIndex = MENU_ITEMS.length + index;
+              const isSelected = selectedIndex === absoluteIndex;
+              return (
+                <Box key={item.id} flexDirection="row">
+                  <Box width={2}>
+                    <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
+                  </Box>
+                  <Box flexDirection="row" justifyContent="space-between" flexGrow={1}>
+                    <Text color={isSelected ? colors.primary : undefined}>{item.title}</Text>
+                    <Text color={colors.secondary}>{item.created}</Text>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 }

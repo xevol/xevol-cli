@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput } from "ink";
 import { promises as fs } from "fs";
 import path from "path";
 import { useApi } from "../hooks/useApi";
@@ -10,12 +10,21 @@ import { pickValue } from "../../lib/utils";
 import { formatDuration } from "../../lib/output";
 import { openUrl } from "../utils/openUrl";
 import { wrapText } from "../utils/wrapText";
+import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import type { NavigationState } from "../hooks/useNavigation";
+import type { Hint } from "../components/Footer";
+
+interface TerminalSize {
+  columns: number;
+  rows: number;
+}
 
 interface TranscriptionDetailProps {
   id: string;
   navigation: Pick<NavigationState, "push">;
   onBack: () => void;
+  terminal: TerminalSize;
+  setFooterHints: (hints: Hint[]) => void;
 }
 
 function unwrapAnalysis(data: Record<string, unknown> | null): Record<string, unknown> | null {
@@ -36,50 +45,24 @@ function formatCreatedAt(raw?: string): string {
   return date.toLocaleString();
 }
 
-function buildMarkdown(data: Record<string, unknown>): string {
-  const title = pickValue(data, ["title", "videoTitle", "name"]) ?? "Untitled";
-  const channel = pickValue(data, ["channel", "channelTitle", "author"]) ?? "";
-  const url = pickValue(data, ["url", "youtubeUrl", "videoUrl"]) ?? "";
-  const lang = pickValue(data, ["lang", "outputLang", "language"]) ?? "";
-  const status = pickValue(data, ["status", "state"]) ?? "";
-  const content =
-    (data.cleanContent as string | undefined) ??
-    (data.content as string | undefined) ??
-    (data.transcript as string | undefined) ??
-    "";
-
-  const lines: string[] = [];
-  lines.push(`# ${title}`);
-  lines.push("");
-
-  const meta: string[] = [];
-  if (channel) meta.push(`- **Channel:** ${channel}`);
-  if (url) meta.push(`- **URL:** ${url}`);
-  if (lang) meta.push(`- **Language:** ${lang}`);
-  if (status) meta.push(`- **Status:** ${status}`);
-  if (meta.length > 0) {
-    lines.push(...meta);
-    lines.push("");
-    lines.push("---");
-    lines.push("");
-  }
-
-  if (content) {
-    lines.push(content);
-  } else {
-    lines.push("*No transcript content available.*");
-  }
-
-  return lines.join("\n");
-}
-
-export function TranscriptionDetail({ id, navigation, onBack }: TranscriptionDetailProps): JSX.Element {
-  const { stdout } = useStdout();
+export function TranscriptionDetail({
+  id,
+  navigation,
+  onBack,
+  terminal,
+  setFooterHints,
+}: TranscriptionDetailProps): JSX.Element {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  const { data, loading, error } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const { data, loading, error, refresh } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
   const analysis = useMemo(() => unwrapAnalysis(data), [data]);
 
   const title = pickValue(analysis ?? {}, ["title", "videoTitle", "name"]) ?? "Untitled";
@@ -98,19 +81,30 @@ export function TranscriptionDetail({ id, navigation, onBack }: TranscriptionDet
     (analysis?.transcript as string | undefined) ??
     "";
 
-  const contentWidth = Math.max(20, (stdout.columns ?? 80) - 4);
+  const contentWidth = Math.max(20, terminal.columns - 4);
   const contentLines = useMemo(
     () => wrapText(transcript || "No transcript content available.", contentWidth),
     [transcript, contentWidth],
   );
 
   const reservedRows = 10 + (notice ? 2 : 0);
-  const contentHeight = Math.max(4, (stdout.rows ?? 24) - reservedRows);
+  const contentHeight = Math.max(4, terminal.rows - reservedRows);
   const maxOffset = Math.max(0, contentLines.length - contentHeight);
 
   useEffect(() => {
     setScrollOffset((prev) => Math.min(prev, maxOffset));
   }, [maxOffset]);
+
+  useEffect(() => {
+    setFooterHints([
+      { key: "↑/↓", description: "scroll" },
+      { key: "s", description: "spikes" },
+      { key: "e", description: "export" },
+      { key: "o", description: "open" },
+      { key: "r", description: "refresh" },
+      { key: "Esc", description: "back" },
+    ]);
+  }, [setFooterHints]);
 
   const handleExport = useCallback(async () => {
     if (!analysis) {
@@ -121,7 +115,7 @@ export function TranscriptionDetail({ id, navigation, onBack }: TranscriptionDet
     setExporting(true);
     setNotice(null);
     try {
-      const output = buildMarkdown(analysis);
+      const output = buildMarkdownFromAnalysis(analysis);
       if (!output.trim()) {
         setNotice("No transcript content available.");
         return;
@@ -150,6 +144,11 @@ export function TranscriptionDetail({ id, navigation, onBack }: TranscriptionDet
 
     if (key.escape || key.backspace) {
       onBack();
+      return;
+    }
+
+    if (lower === "r") {
+      void refresh();
       return;
     }
 
@@ -183,7 +182,11 @@ export function TranscriptionDetail({ id, navigation, onBack }: TranscriptionDet
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       {loading && <Spinner label="Fetching transcription…" />}
-      {error && <Text color={colors.error}>{error}</Text>}
+      {error && (
+        <Text color={colors.error}>
+          {error} (press r to retry)
+        </Text>
+      )}
 
       {!loading && !error && analysis && (
         <Box flexDirection="column">

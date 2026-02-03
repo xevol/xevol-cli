@@ -1,9 +1,12 @@
 export const colors = {
-  primary: "cyan",
+  primary: "blueBright",
   secondary: "gray",
+  muted: "gray",
+  accent: "cyanBright",
   success: "green",
-  warning: "yellow",
-  error: "red",
+  warning: "yellowBright",
+  error: "redBright",
+  highlight: "white",
 };
 
 export const spacing = {

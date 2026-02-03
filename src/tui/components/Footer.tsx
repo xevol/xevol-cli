@@ -1,35 +1,32 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { ScreenName } from "../hooks/useNavigation";
 import { colors } from "../theme";
 
+export interface Hint {
+  key: string;
+  description: string;
+}
+
 interface FooterProps {
-  screen: ScreenName;
+  hints: Hint[];
+  status?: string;
 }
 
-function buildHints(screen: ScreenName): string {
-  if (screen === "dashboard") {
-    return "↑/↓ move · Enter select · ?: help · q: quit";
-  }
-  if (screen === "detail") {
-    return "↑/↓/j/k scroll · s spikes · e export · o open · Esc back · q: quit";
-  }
-  if (screen === "spike-viewer") {
-    return "↑/↓ move · Enter view · Esc back · q: quit";
-  }
-  if (screen === "help") {
-    return "? or Esc: close · q: quit";
-  }
-  if (screen === "workspaces" || screen === "settings") {
-    return "Esc back · q: quit";
-  }
-  return "↑/↓ move · Enter select · n/p page · / search · d delete · o open · r refresh · Esc back · ?: help · q: quit";
-}
-
-export function Footer({ screen }: FooterProps): JSX.Element {
+export function Footer({ hints, status }: FooterProps): JSX.Element {
   return (
     <Box paddingX={1} paddingY={0}>
-      <Text color={colors.secondary}>{buildHints(screen)}</Text>
+      <Text>
+        {hints.map((hint, index) => (
+          <Text key={`${hint.key}-${index}`}>
+            {index > 0 && <Text color={colors.secondary}> · </Text>}
+            {hint.key ? <Text color={colors.primary}>{hint.key}</Text> : null}
+            {hint.description && (
+              <Text color={colors.secondary}>{hint.key ? ` ${hint.description}` : hint.description}</Text>
+            )}
+          </Text>
+        ))}
+        {status ? <Text color={colors.secondary}> · {status}</Text> : null}
+      </Text>
     </Box>
   );
 }
