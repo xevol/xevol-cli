@@ -1,20 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import TextInput from "ink-text-input";
-import { Spinner } from "../components/Spinner";
 import InkSpinner from "ink-spinner";
-import { colors } from "../theme";
+import TextInput from "ink-text-input";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
-import { streamSSE, type SSEEvent } from "../../lib/sse";
-import { extractId, extractStatus, pickValue } from "../../lib/utils";
-import { wrapText } from "../utils/wrapText";
-import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
-import { copyToClipboard } from "../utils/clipboard";
-import { useLayout } from "../context/LayoutContext";
-import { useInputLock } from "../context/InputContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { AddResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
+import { type SSEEvent, streamSSE } from "../../lib/sse";
+import { extractId, extractStatus, pickValue } from "../../lib/utils";
+import { Spinner } from "../components/Spinner";
+import { useInputLock } from "../context/InputContext";
+import { useLayout } from "../context/LayoutContext";
+import { colors } from "../theme";
+import { copyToClipboard } from "../utils/clipboard";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 
 interface TerminalSize {
   columns: number;
@@ -82,7 +81,7 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
   const { setInputActive } = useInputLock();
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("input");
-  const [statusText, setStatusText] = useState("");
+  const [_statusText, setStatusText] = useState("");
   const [errorText, setErrorText] = useState("");
   const [streamContent, setStreamContent] = useState("");
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -185,9 +184,7 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
         { key: "Esc", description: "back" },
       ]);
     } else {
-      setFooterHints([
-        { key: "Esc", description: "cancel" },
-      ]);
+      setFooterHints([{ key: "Esc", description: "cancel" }]);
     }
   }, [phase, setFooterHints]);
 
@@ -208,183 +205,184 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
     }
   }, [maxOffset, phase]);
 
-  const runPipeline = useCallback(async (youtubeUrl: string) => {
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+  const runPipeline = useCallback(
+    async (youtubeUrl: string) => {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-    try {
-      const config = (await readConfig()) ?? {};
-      const { token, expired } = resolveToken(config);
-      if (!token) {
-        setErrorText(
-          expired
-            ? "Token expired. Run `xevol login` to re-authenticate."
-            : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
-        );
-        setPhase("error");
-        return;
-      }
-      const apiUrl = resolveApiUrl(config);
+      try {
+        const config = (await readConfig()) ?? {};
+        const { token, expired } = resolveToken(config);
+        if (!token) {
+          setErrorText(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+          );
+          setPhase("error");
+          return;
+        }
+        const apiUrl = resolveApiUrl(config);
 
-      // 1. Submit URL
-      setPhase("submitting");
-      startPhaseTimer("submitting");
-      setStatusText("Submitting URL…");
+        // 1. Submit URL
+        setPhase("submitting");
+        startPhaseTimer("submitting");
+        setStatusText("Submitting URL…");
 
-      const rawAddResponse = (await apiFetch("/v1/add", {
-        query: { url: youtubeUrl, outputLang: "en" },
-        token,
-        apiUrl,
-      })) as Record<string, unknown>;
-      const addResponse = parseResponse(AddResponseSchema, rawAddResponse, "add-url");
-
-      if (controller.signal.aborted) return;
-
-      const tid = extractId(addResponse);
-      if (!tid) {
-        setErrorText("No transcription ID returned from API.");
-        setPhase("error");
-        return;
-      }
-      setTranscriptionId(tid);
-
-      // Show title from add response if available
-      const addTitle = pickValue(addResponse, ["title", "videoTitle", "name"]);
-      if (addTitle) setTranscriptionTitle(addTitle);
-
-      // 2. Poll for completion
-      setPhase("processing");
-      startPhaseTimer("processing");
-      const maxAttempts = 120;
-      let finalResponse: Record<string, unknown> | null = null;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        if (controller.signal.aborted) return;
-
-        const statusResponse = (await apiFetch(`/v1/status/${tid}`, {
+        const rawAddResponse = (await apiFetch("/v1/add", {
+          query: { url: youtubeUrl, outputLang: "en" },
           token,
           apiUrl,
         })) as Record<string, unknown>;
+        const addResponse = parseResponse(AddResponseSchema, rawAddResponse, "add-url");
 
-        const currentStatus = extractStatus(statusResponse)?.toLowerCase() ?? "pending";
-        setStatusText(`Processing… (${currentStatus})`);
+        if (controller.signal.aborted) return;
 
-        if (currentStatus.includes("complete")) {
-          const titleVal = pickValue(statusResponse, ["title", "videoTitle", "name"]);
-          if (titleVal) setTranscriptionTitle(titleVal);
-          finalResponse = statusResponse;
-          break;
+        const tid = extractId(addResponse);
+        if (!tid) {
+          setErrorText("No transcription ID returned from API.");
+          setPhase("error");
+          return;
+        }
+        setTranscriptionId(tid);
+
+        // Show title from add response if available
+        const addTitle = pickValue(addResponse, ["title", "videoTitle", "name"]);
+        if (addTitle) setTranscriptionTitle(addTitle);
+
+        // 2. Poll for completion
+        setPhase("processing");
+        startPhaseTimer("processing");
+        const maxAttempts = 120;
+        let finalResponse: Record<string, unknown> | null = null;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          if (controller.signal.aborted) return;
+
+          const statusResponse = (await apiFetch(`/v1/status/${tid}`, {
+            token,
+            apiUrl,
+          })) as Record<string, unknown>;
+
+          const currentStatus = extractStatus(statusResponse)?.toLowerCase() ?? "pending";
+          setStatusText(`Processing… (${currentStatus})`);
+
+          if (currentStatus.includes("complete")) {
+            const titleVal = pickValue(statusResponse, ["title", "videoTitle", "name"]);
+            if (titleVal) setTranscriptionTitle(titleVal);
+            finalResponse = statusResponse;
+            break;
+          }
+
+          if (currentStatus.includes("error") || currentStatus.includes("failed")) {
+            setErrorText(`Transcription failed: ${currentStatus}`);
+            setPhase("error");
+            return;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 5000));
         }
 
-        if (currentStatus.includes("error") || currentStatus.includes("failed")) {
-          setErrorText(`Transcription failed: ${currentStatus}`);
+        if (controller.signal.aborted) return;
+
+        if (!finalResponse) {
+          setErrorText("Timed out waiting for transcription to complete.");
           setPhase("error");
           return;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-      }
+        // 3. Create spike
+        setPhase("creating-spike");
+        startPhaseTimer("creating-spike");
+        setStatusText("Creating spike…");
 
-      if (controller.signal.aborted) return;
+        const rawSpikeResponse = (await apiFetch(`/spikes/${tid}`, {
+          method: "POST",
+          body: { promptId: "formatted", outputLang: "en" },
+          token,
+          apiUrl,
+        })) as Record<string, unknown>;
+        const spikeResponse = parseResponse(SpikeCreateResponseSchema, rawSpikeResponse, "spike-create-add");
 
-      if (!finalResponse) {
-        setErrorText("Timed out waiting for transcription to complete.");
-        setPhase("error");
-        return;
-      }
-
-      // 3. Create spike
-      setPhase("creating-spike");
-      startPhaseTimer("creating-spike");
-      setStatusText("Creating spike…");
-
-      const rawSpikeResponse = (await apiFetch(`/spikes/${tid}`, {
-        method: "POST",
-        body: { promptId: "formatted", outputLang: "en" },
-        token,
-        apiUrl,
-      })) as Record<string, unknown>;
-      const spikeResponse = parseResponse(SpikeCreateResponseSchema, rawSpikeResponse, "spike-create-add");
-
-      if (controller.signal.aborted) return;
-
-      const spikeId = spikeResponse.spikeId as string | undefined;
-
-      // Check for cached content
-      const cachedContent =
-        (spikeResponse.content as string) ??
-        (spikeResponse.markdown as string);
-      if (cachedContent) {
-        setStreamContent(cachedContent);
-        finishAllTimers();
-        setPhase("done");
-        return;
-      }
-
-      if (!spikeId) {
-        setErrorText("No spike ID returned — spike may not have been created.");
-        setPhase("error");
-        return;
-      }
-
-      // 4. Stream spike content
-      setPhase("streaming");
-      startPhaseTimer("streaming");
-      setStatusText("Streaming content…");
-
-      let fullContent = "";
-
-      const streamPaths = [`/stream/spikes/${spikeId}`, `/spikes/stream/${spikeId}`];
-      let streamed = false;
-      let lastError: Error | null = null;
-
-      for (const spath of streamPaths) {
         if (controller.signal.aborted) return;
-        try {
-          for await (const event of streamSSE(spath, {
-            token,
-            apiUrl,
-            signal: controller.signal,
-          })) {
-            if (event.event === "error") {
-              continue;
-            }
-            const chunk = extractChunk(event);
-            if (chunk) {
-              fullContent += chunk;
-              setStreamContent(fullContent);
-            }
-          }
-          streamed = true;
-          break;
-        } catch (err) {
-          lastError = err as Error;
-        }
-      }
 
-      if (controller.signal.aborted) return;
+        const spikeId = spikeResponse.spikeId as string | undefined;
 
-      if (!streamed && lastError) {
-        if (fullContent) {
+        // Check for cached content
+        const cachedContent = (spikeResponse.content as string) ?? (spikeResponse.markdown as string);
+        if (cachedContent) {
+          setStreamContent(cachedContent);
           finishAllTimers();
           setPhase("done");
-        } else {
-          setErrorText(lastError.message);
-          setPhase("error");
+          return;
         }
-        return;
-      }
 
-      finishAllTimers();
-      setPhase("done");
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setErrorText((err as Error).message);
-      setPhase("error");
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [startPhaseTimer, finishAllTimers]);
+        if (!spikeId) {
+          setErrorText("No spike ID returned — spike may not have been created.");
+          setPhase("error");
+          return;
+        }
+
+        // 4. Stream spike content
+        setPhase("streaming");
+        startPhaseTimer("streaming");
+        setStatusText("Streaming content…");
+
+        let fullContent = "";
+
+        const streamPaths = [`/stream/spikes/${spikeId}`, `/spikes/stream/${spikeId}`];
+        let streamed = false;
+        let lastError: Error | null = null;
+
+        for (const spath of streamPaths) {
+          if (controller.signal.aborted) return;
+          try {
+            for await (const event of streamSSE(spath, {
+              token,
+              apiUrl,
+              signal: controller.signal,
+            })) {
+              if (event.event === "error") {
+                continue;
+              }
+              const chunk = extractChunk(event);
+              if (chunk) {
+                fullContent += chunk;
+                setStreamContent(fullContent);
+              }
+            }
+            streamed = true;
+            break;
+          } catch (err) {
+            lastError = err as Error;
+          }
+        }
+
+        if (controller.signal.aborted) return;
+
+        if (!streamed && lastError) {
+          if (fullContent) {
+            finishAllTimers();
+            setPhase("done");
+          } else {
+            setErrorText(lastError.message);
+            setPhase("error");
+          }
+          return;
+        }
+
+        finishAllTimers();
+        setPhase("done");
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setErrorText((err as Error).message);
+        setPhase("error");
+      } finally {
+        abortControllerRef.current = null;
+      }
+    },
+    [startPhaseTimer, finishAllTimers],
+  );
 
   const handleSubmit = useCallback(
     (value: string) => {
@@ -484,12 +482,8 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
 
       {(phase === "submitting" || phase === "processing" || phase === "creating-spike") && (
         <Box marginTop={1} flexDirection="column">
-          {transcriptionId && (
-            <Text color={colors.secondary}>ID: {transcriptionId}</Text>
-          )}
-          {transcriptionTitle && (
-            <Text color={colors.secondary}>{transcriptionTitle}</Text>
-          )}
+          {transcriptionId && <Text color={colors.secondary}>ID: {transcriptionId}</Text>}
+          {transcriptionTitle && <Text color={colors.secondary}>{transcriptionTitle}</Text>}
           <Box marginTop={1} flexDirection="column">
             {PHASE_ORDER.map((p) => {
               const timer = phaseTimers[p];
@@ -506,13 +500,19 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
               if (isActive) {
                 return (
                   <Box key={p} flexDirection="row">
-                    <Text color={colors.primary}><InkSpinner type="dots" /> {label}{timeStr}</Text>
+                    <Text color={colors.primary}>
+                      <InkSpinner type="dots" /> {label}
+                      {timeStr}
+                    </Text>
                   </Box>
                 );
               }
               return (
                 <Box key={p} flexDirection="row">
-                  <Text color={isDone ? colors.success : colors.secondary}>{icon} {label}{timeStr}</Text>
+                  <Text color={isDone ? colors.success : colors.secondary}>
+                    {icon} {label}
+                    {timeStr}
+                  </Text>
                 </Box>
               );
             })}
@@ -525,9 +525,7 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
 
       {phase === "streaming" && (
         <Box flexDirection="column" marginTop={1}>
-          {transcriptionTitle && (
-            <Text color={colors.secondary}>{transcriptionTitle}</Text>
-          )}
+          {transcriptionTitle && <Text color={colors.secondary}>{transcriptionTitle}</Text>}
           <Box marginTop={1}>
             <Spinner label="Streaming…" />
           </Box>
@@ -539,9 +537,7 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
 
       {phase === "done" && (
         <Box flexDirection="column" marginTop={1}>
-          {transcriptionTitle && (
-            <Text color={colors.secondary}>{transcriptionTitle}</Text>
-          )}
+          {transcriptionTitle && <Text color={colors.secondary}>{transcriptionTitle}</Text>}
           <Box marginTop={1}>
             <Text color={colors.success}>✔ Complete</Text>
           </Box>

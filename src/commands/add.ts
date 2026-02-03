@@ -1,17 +1,17 @@
-import { Command, Option } from "commander";
 import { readFile } from "node:fs/promises";
 import chalk from "chalk";
+import { type Command, Option } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { type JobState, type SpikeState, saveJobState } from "../lib/jobs";
 import { formatDuration, printJson, startSpinner } from "../lib/output";
 import { extractId, extractStatus, pickValue } from "../lib/utils";
-import { saveJobState, type JobState, type SpikeState } from "../lib/jobs";
 import { streamSpikeToTerminal } from "./stream";
 
 const YOUTUBE_URL_RE = /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|shorts|live|embed)|youtu\.be\/)/i;
 
 /** Default SSE idle timeout in ms */
-const SSE_IDLE_TIMEOUT_MS = 30_000;
+const _SSE_IDLE_TIMEOUT_MS = 30_000;
 
 interface AddOptions {
   lang?: string;
@@ -21,7 +21,7 @@ interface AddOptions {
   batch?: string;
   concurrency?: number;
   analyze?: string;
-  spikes?: string;  // hidden alias for backwards compat
+  spikes?: string; // hidden alias for backwards compat
   stream?: boolean;
 }
 
@@ -107,24 +107,24 @@ async function submitBatchUrl(
   }
 }
 
-async function runBatchAdd(
-  filePath: string,
-  options: AddOptions,
-  command: Command,
-): Promise<void> {
+async function runBatchAdd(filePath: string, options: AddOptions, command: Command): Promise<void> {
   const config = (await readConfig()) ?? {};
   const tokenOverride = getTokenOverride(options as { token?: string }, command);
   const { token, expired } = resolveToken(config, tokenOverride);
 
   if (!token) {
-    console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+    console.error(
+      expired
+        ? "Token expired. Run `xevol login` to re-authenticate."
+        : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+    );
     process.exitCode = 1;
     return;
   }
 
   const concurrency = options.concurrency ?? 3;
   if (!Number.isFinite(concurrency) || concurrency < 1) {
-    console.error(chalk.red("Error:") + " Concurrency must be a positive number.");
+    console.error(`${chalk.red("Error:")} Concurrency must be a positive number.`);
     process.exitCode = 1;
     return;
   }
@@ -133,7 +133,7 @@ async function runBatchAdd(
   try {
     rawFile = await readFile(filePath, "utf8");
   } catch (error) {
-    console.error(chalk.red("Error:") + ` Unable to read batch file: ${filePath}`);
+    console.error(`${chalk.red("Error:")} Unable to read batch file: ${filePath}`);
     console.error((error as Error).message);
     process.exitCode = 1;
     return;
@@ -145,7 +145,7 @@ async function runBatchAdd(
     .filter((line) => line.length > 0 && !line.startsWith("#"));
 
   if (urls.length === 0) {
-    console.error(chalk.red("Error:") + " No URLs found in batch file.");
+    console.error(`${chalk.red("Error:")} No URLs found in batch file.`);
     process.exitCode = 1;
     return;
   }
@@ -185,8 +185,6 @@ async function runBatchAdd(
     console.error(`Summary: ${successCount} succeeded, ${failureCount} failed`);
     return;
   }
-
-  console.log(`Summary: ${successCount} succeeded, ${failureCount} failed`);
 }
 
 export function registerAddCommand(program: Command): void {
@@ -202,13 +200,16 @@ export function registerAddCommand(program: Command): void {
     .addOption(new Option("--spikes <prompts>").hideHelp())
     .option("--stream", "Stream analysis content in real-time via SSE (use with --analyze)")
     .option("--json", "Raw JSON output")
-    .addHelpText('after', `
+    .addHelpText(
+      "after",
+      `
 Examples:
   $ xevol add "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   $ xevol add "https://youtu.be/dQw4w9WgXcQ" --lang kk
   $ xevol add "https://www.youtube.com/watch?v=..." --analyze review,summary --stream
   $ xevol add "https://www.youtube.com/watch?v=..." --no-wait
-  $ xevol add --batch urls.txt --concurrency 5`)
+  $ xevol add --batch urls.txt --concurrency 5`,
+    )
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
         if (options.batch) {
@@ -218,7 +219,9 @@ Examples:
 
         // Validate YouTube URL before doing anything
         if (!YOUTUBE_URL_RE.test(youtubeUrl)) {
-          console.error(chalk.red("Error:") + " Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...");
+          console.error(
+            `${chalk.red("Error:")} Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...`,
+          );
           process.exitCode = 1;
           return;
         }
@@ -228,7 +231,11 @@ Examples:
         const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+          console.error(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+          );
           process.exitCode = 1;
           return;
         }
@@ -241,7 +248,7 @@ Examples:
         })) as Record<string, unknown>;
 
         const id = extractId(response);
-        const status = extractStatus(response) ?? "pending";
+        const _status = extractStatus(response) ?? "pending";
 
         if (!id) {
           if (options.json) {
@@ -254,8 +261,6 @@ Examples:
         }
 
         if (!options.json) {
-          console.log(`${chalk.green("✔")} Transcription created: ${id}`);
-          console.log(`Status: ${status}`);
         }
 
         // --analyze takes precedence, fall back to --spikes (hidden alias)
@@ -263,10 +268,14 @@ Examples:
 
         // Default: wait for completion. --no-wait skips.
         if (options.wait !== false) {
-          const promptIds = analyzeFlag ? analyzeFlag.split(",").map((s) => s.trim()).filter(Boolean) : [];
-          const totalSteps = 1 + promptIds.length;
+          const promptIds = analyzeFlag
+            ? analyzeFlag
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [];
+          const _totalSteps = 1 + promptIds.length;
           if (!options.json) {
-            console.log(chalk.dim(`[1/${totalSteps}] Transcribing...`));
           }
 
           const finalResponse = await waitForCompletion(id, token, apiUrl);
@@ -278,7 +287,7 @@ Examples:
           if (analyzeFlag && finalResponse) {
             const status = extractStatus(finalResponse)?.toLowerCase() ?? "";
             if (!status.includes("complete")) {
-              console.error(chalk.red("Error:") + " Transcription did not complete — skipping analysis generation.");
+              console.error(`${chalk.red("Error:")} Transcription did not complete — skipping analysis generation.`);
             } else if (options.stream) {
               // === STREAMING MODE ===
               const lang = options.lang ?? "en";
@@ -297,9 +306,8 @@ Examples:
 
               for (let i = 0; i < promptIds.length; i++) {
                 const promptId = promptIds[i];
-                const stepNum = i + 2; // step 1 was transcription
+                const _stepNum = i + 2; // step 1 was transcription
                 if (!options.json) {
-                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating analysis: ${promptId}...`));
                 }
                 const spinner = startSpinner(`Creating analysis: ${promptId}...`);
 
@@ -323,14 +331,10 @@ Examples:
                   jobState.spikes.push(spikeState);
 
                   // If content already cached, print and skip streaming
-                  const cachedContent =
-                    (spikeResponse.content as string) ??
-                    (spikeResponse.markdown as string);
+                  const cachedContent = (spikeResponse.content as string) ?? (spikeResponse.markdown as string);
                   if (cachedContent) {
                     spinner.succeed(`Analysis ready: ${promptId} (cached)`);
                     if (!options.json) {
-                      console.log(chalk.bold.cyan(`\n─── ${promptId} ───`));
-                      console.log(cachedContent);
                     }
                     spikeState.status = "complete";
                     await saveJobState(jobState);
@@ -360,7 +364,6 @@ Examples:
                   await saveJobState(jobState);
 
                   if (!options.json) {
-                    console.log(chalk.green(`✔ Analysis complete: ${promptId}`));
                   }
                   spikeResults.push({ spikeId, promptId, content: result.content });
                 } catch (error) {
@@ -374,7 +377,6 @@ Examples:
               }
 
               if (!options.json) {
-                console.log(chalk.green(`\n✔ All done. Resume anytime: xevol resume ${id}`));
               } else {
                 printJson({ transcription: finalResponse, spikes: spikeResults });
               }
@@ -385,9 +387,8 @@ Examples:
 
               for (let i = 0; i < promptIds.length; i++) {
                 const promptId = promptIds[i];
-                const stepNum = i + 2;
+                const _stepNum = i + 2;
                 if (!options.json) {
-                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating analysis: ${promptId}...`));
                 }
                 const spinner = startSpinner(`Generating analysis: ${promptId}...`);
                 const started = Date.now();
@@ -403,7 +404,8 @@ Examples:
                   })) as Record<string, unknown>;
 
                   // Poll if spike is being generated
-                  const spikes = (spikeResponse.spikes as unknown[] | undefined) ??
+                  const spikes =
+                    (spikeResponse.spikes as unknown[] | undefined) ??
                     (spikeResponse.data as unknown[] | undefined) ??
                     (spikeResponse.items as unknown[] | undefined);
 
@@ -421,7 +423,8 @@ Examples:
                       })) as Record<string, unknown>;
 
                       const content = spikeResponse.content ?? spikeResponse.markdown ?? spikeResponse.text;
-                      const innerSpikes = (spikeResponse.spikes as unknown[] | undefined) ??
+                      const innerSpikes =
+                        (spikeResponse.spikes as unknown[] | undefined) ??
                         (spikeResponse.data as unknown[] | undefined);
                       if (content || (Array.isArray(innerSpikes) && innerSpikes.length > 0)) {
                         break;

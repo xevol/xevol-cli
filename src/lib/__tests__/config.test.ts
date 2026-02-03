@@ -1,6 +1,6 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { resolveToken, resolveApiUrl, DEFAULT_API_URL } from "../config";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { XevolConfig } from "../config";
+import { DEFAULT_API_URL, resolveApiUrl, resolveToken } from "../config";
 
 describe("resolveToken", () => {
   const originalEnv = process.env.XEVOL_TOKEN;

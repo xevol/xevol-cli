@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { useApi } from "../hooks/useApi";
-import { Spinner } from "../components/Spinner";
-import { colors } from "../theme";
+import { useEffect, useMemo, useState } from "react";
 import { readConfig, updateConfig } from "../../lib/config";
-import { useLayout } from "../context/LayoutContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { WorkspacesResponseSchema } from "../../lib/schemas";
+import { Spinner } from "../components/Spinner";
+import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import { colors } from "../theme";
 
 interface WorkspacesProps {
   onBack: () => void;
@@ -33,20 +33,12 @@ function toStringValue(value: unknown): string | undefined {
 
 function extractId(item: RawItem): string | undefined {
   return (
-    toStringValue(item.id) ??
-    toStringValue(item.workspaceId) ??
-    toStringValue(item._id) ??
-    toStringValue(item.slug)
+    toStringValue(item.id) ?? toStringValue(item.workspaceId) ?? toStringValue(item._id) ?? toStringValue(item.slug)
   );
 }
 
 function extractName(item: RawItem): string {
-  return (
-    toStringValue(item.name) ??
-    toStringValue(item.title) ??
-    toStringValue(item.workspaceName) ??
-    "-"
-  );
+  return toStringValue(item.name) ?? toStringValue(item.title) ?? toStringValue(item.workspaceName) ?? "-";
 }
 
 function extractRole(item: RawItem): string {
@@ -161,7 +153,9 @@ export function Workspaces({ onBack }: WorkspacesProps): JSX.Element {
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
-      <Text bold color={colors.primary}>Workspaces</Text>
+      <Text bold color={colors.primary}>
+        Workspaces
+      </Text>
 
       {loading && (
         <Box marginTop={1}>
@@ -189,17 +183,11 @@ export function Workspaces({ onBack }: WorkspacesProps): JSX.Element {
             return (
               <Box key={ws.id} flexDirection="row" marginBottom={0}>
                 <Box width={2}>
-                  <Text color={isSelected ? colors.primary : colors.secondary}>
-                    {isSelected ? "›" : " "}
-                  </Text>
+                  <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
                 </Box>
                 <Box flexDirection="row" flexGrow={1}>
-                  <Text color={isSelected ? colors.primary : undefined}>
-                    {ws.name}
-                  </Text>
-                  {isActive && (
-                    <Text color={colors.primary}> ●</Text>
-                  )}
+                  <Text color={isSelected ? colors.primary : undefined}>{ws.name}</Text>
+                  {isActive && <Text color={colors.primary}> ●</Text>}
                   <Text color={colors.secondary}> · {ws.role}</Text>
                 </Box>
               </Box>

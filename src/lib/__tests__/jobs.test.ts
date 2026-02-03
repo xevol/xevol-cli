@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { promises as fs } from "fs";
-import os from "os";
-import path from "path";
-import { saveJobState, loadJobState, type JobState } from "../jobs";
+import { afterEach, describe, expect, test } from "bun:test";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { type JobState, loadJobState, saveJobState } from "../jobs";
 
 // We test against the real jobs dir to avoid mocking
 // but use a unique ID to avoid conflicts
@@ -39,17 +39,17 @@ describe("saveJobState / loadJobState", () => {
     const loaded = await loadJobState(TEST_ID);
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.transcriptionId).toBe(TEST_ID);
-    expect(loaded!.url).toBe("https://youtube.com/watch?v=test");
-    expect(loaded!.lang).toBe("kk");
-    expect(loaded!.outputLang).toBe("kk");
-    expect(loaded!.spikes).toHaveLength(1);
-    expect(loaded!.spikes[0].spikeId).toBe("spike1");
-    expect(loaded!.spikes[0].status).toBe("complete");
+    expect(loaded?.transcriptionId).toBe(TEST_ID);
+    expect(loaded?.url).toBe("https://youtube.com/watch?v=test");
+    expect(loaded?.lang).toBe("kk");
+    expect(loaded?.outputLang).toBe("kk");
+    expect(loaded?.spikes).toHaveLength(1);
+    expect(loaded?.spikes[0].spikeId).toBe("spike1");
+    expect(loaded?.spikes[0].status).toBe("complete");
   });
 
   test("returns null for non-existent job", async () => {
-    const loaded = await loadJobState("nonexistent_" + Date.now());
+    const loaded = await loadJobState(`nonexistent_${Date.now()}`);
     expect(loaded).toBeNull();
   });
 
@@ -65,7 +65,7 @@ describe("saveJobState / loadJobState", () => {
     await saveJobState(state);
     const loaded = await loadJobState(TEST_ID);
 
-    expect(loaded!.updatedAt).not.toBe("2024-01-01T00:00:00.000Z");
-    expect(new Date(loaded!.updatedAt).getTime()).toBeGreaterThan(new Date("2024-01-01").getTime());
+    expect(loaded?.updatedAt).not.toBe("2024-01-01T00:00:00.000Z");
+    expect(new Date(loaded?.updatedAt).getTime()).toBeGreaterThan(new Date("2024-01-01").getTime());
   });
 });

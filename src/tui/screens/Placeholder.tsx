@@ -1,7 +1,7 @@
-import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
-import { colors } from "../theme";
+import { useEffect } from "react";
 import type { Hint } from "../components/Footer";
+import { colors } from "../theme";
 
 interface PlaceholderProps {
   title: string;
@@ -17,7 +17,7 @@ export function Placeholder({ title, onBack, setFooterHints }: PlaceholderProps)
     ]);
   }, [setFooterHints]);
 
-  useInput((input, key) => {
+  useInput((_input, key) => {
     if (key.escape || key.backspace) {
       onBack();
     }

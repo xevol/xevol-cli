@@ -1,8 +1,8 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { loadJobState, saveJobState, type JobState } from "../lib/jobs";
+import { loadJobState, saveJobState } from "../lib/jobs";
 import { printJson, startSpinner } from "../lib/output";
 import { streamSpikeToTerminal } from "./stream";
 
@@ -47,10 +47,6 @@ export function registerResumeCommand(program: Command): void {
         const lang = jobState.lang ?? jobState.outputLang ?? "en";
 
         if (!options.json) {
-          console.log(chalk.bold(`Resuming job for transcription: ${id}`));
-          console.log(chalk.dim(`URL: ${jobState.url}`));
-          console.log(chalk.dim(`Analyses: ${jobState.spikes.length}`));
-          console.log();
         }
 
         const results: Record<string, unknown>[] = [];
@@ -59,8 +55,6 @@ export function registerResumeCommand(program: Command): void {
           if (spike.status === "complete") {
             // Fetch cached content from API
             if (!options.json) {
-              console.log(chalk.bold.cyan(`\n─── ${spike.promptId} ───`));
-              console.log(chalk.dim("(cached)"));
             }
 
             try {
@@ -80,9 +74,7 @@ export function registerResumeCommand(program: Command): void {
                   (spikeResponse.text as string) ??
                   "";
                 if (content) {
-                  console.log(content);
                 }
-                console.log(chalk.green("✔ Analysis complete: " + spike.promptId));
               }
             } catch (error) {
               console.error(chalk.red(`Failed to fetch ${spike.promptId}: ${(error as Error).message}`));
@@ -93,7 +85,6 @@ export function registerResumeCommand(program: Command): void {
           if (spike.status === "streaming") {
             // Reconnect to SSE with Last-Event-ID
             if (!options.json) {
-              console.log(chalk.dim(`\nReconnecting to ${spike.promptId}...`));
             }
 
             try {
@@ -108,7 +99,6 @@ export function registerResumeCommand(program: Command): void {
               await saveJobState(jobState);
 
               if (!options.json) {
-                console.log(chalk.green("✔ Analysis complete: " + spike.promptId));
               } else {
                 results.push({ spikeId: spike.spikeId, promptId: spike.promptId, content: result.content });
               }
@@ -136,14 +126,10 @@ export function registerResumeCommand(program: Command): void {
               spike.spikeId = spikeId;
 
               // If content already available (cached), print it
-              const cachedContent =
-                (spikeResponse.content as string) ??
-                (spikeResponse.markdown as string);
+              const cachedContent = (spikeResponse.content as string) ?? (spikeResponse.markdown as string);
               if (cachedContent) {
                 spinner.succeed(`Analysis ready: ${spike.promptId}`);
                 if (!options.json) {
-                  console.log(chalk.bold.cyan(`\n─── ${spike.promptId} ───`));
-                  console.log(cachedContent);
                 }
                 spike.status = "complete";
                 await saveJobState(jobState);
@@ -167,7 +153,6 @@ export function registerResumeCommand(program: Command): void {
               await saveJobState(jobState);
 
               if (!options.json) {
-                console.log(chalk.green("✔ Analysis complete: " + spike.promptId));
               } else {
                 results.push({ spikeId, promptId: spike.promptId, content: result.content });
               }
@@ -182,7 +167,6 @@ export function registerResumeCommand(program: Command): void {
         if (options.json) {
           printJson({ transcriptionId: id, spikes: results });
         } else {
-          console.log(chalk.green("\n✔ All analyses resumed."));
         }
       } catch (error) {
         console.error(chalk.red((error as Error).message));

@@ -1,23 +1,23 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Box, Text, render, useApp, useInput } from "ink";
-import { Header } from "./components/Header";
-import { Footer } from "./components/Footer";
-import { StatsBar } from "./components/StatsBar";
-import { useNavigation } from "./hooks/useNavigation";
-import { TranscriptionList } from "./screens/TranscriptionList";
-import { Help } from "./screens/Help";
-import { Dashboard } from "./screens/Dashboard";
-import { TranscriptionDetail } from "./screens/TranscriptionDetail";
-import { SpikeViewer } from "./screens/SpikeViewer";
-import { Workspaces } from "./screens/Workspaces";
-import { Settings } from "./screens/Settings";
-import { AddUrl } from "./screens/AddUrl";
-import { InputProvider, useInputLock } from "./context/InputContext";
-import { LayoutProvider, useLayout } from "./context/LayoutContext";
-import { useTerminal } from "./hooks/useTerminal";
+import { Box, render, Text, useApp, useInput } from "ink";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { checkForUpdate } from "../lib/update-check";
+import { Footer } from "./components/Footer";
+import { Header } from "./components/Header";
+import { StatsBar } from "./components/StatsBar";
+import { InputProvider, useInputLock } from "./context/InputContext";
+import { LayoutProvider, useLayout } from "./context/LayoutContext";
+import { useNavigation } from "./hooks/useNavigation";
+import { useTerminal } from "./hooks/useTerminal";
+import { AddUrl } from "./screens/AddUrl";
+import { Dashboard } from "./screens/Dashboard";
+import { Help } from "./screens/Help";
+import { Settings } from "./screens/Settings";
+import { SpikeViewer } from "./screens/SpikeViewer";
+import { TranscriptionDetail } from "./screens/TranscriptionDetail";
+import { TranscriptionList } from "./screens/TranscriptionList";
+import { Workspaces } from "./screens/Workspaces";
 
 interface AppProps {
   version: string;
@@ -53,8 +53,7 @@ function AppInner({ version }: AppProps): JSX.Element {
         const apiUrl = resolveApiUrl(config);
         const data = await apiFetch<Record<string, unknown>>("/auth/cli/status", { token, apiUrl });
         const email =
-          (data.email as string | undefined) ??
-          (data.user as Record<string, unknown> | undefined)?.email?.toString();
+          (data.email as string | undefined) ?? (data.user as Record<string, unknown> | undefined)?.email?.toString();
         const plan = (data.plan as string | undefined) ?? undefined;
         if (email) setUserEmail(email);
         if (plan) setUserPlan(plan);
@@ -75,7 +74,7 @@ function AppInner({ version }: AppProps): JSX.Element {
   useEffect(() => {
     setFooterHints([]);
     setFooterStatus(undefined);
-  }, [currentScreen]);
+  }, [setFooterHints, setFooterStatus]);
 
   useInput((input) => {
     // Don't intercept keys when any text input is active
@@ -118,51 +117,21 @@ function AppInner({ version }: AppProps): JSX.Element {
 
   let content: JSX.Element;
   if (currentScreen === "dashboard") {
-    content = (
-      <Dashboard
-        version={version}
-        navigation={navigation}
-      />
-    );
+    content = <Dashboard version={version} navigation={navigation} />;
   } else if (currentScreen === "help") {
     content = <Help onClose={pop} />;
   } else if (currentScreen === "detail") {
-    content = (
-      <TranscriptionDetail
-        id={detailId}
-        navigation={navigation}
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
+    content = <TranscriptionDetail id={detailId} navigation={navigation} onBack={pop} terminal={terminal} />;
   } else if (currentScreen === "spike-viewer") {
-    content = (
-      <SpikeViewer
-        id={detailId}
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
+    content = <SpikeViewer id={detailId} onBack={pop} terminal={terminal} />;
   } else if (currentScreen === "workspaces") {
     content = <Workspaces onBack={pop} />;
   } else if (currentScreen === "settings") {
     content = <Settings onBack={pop} />;
   } else if (currentScreen === "add-url") {
-    content = (
-      <AddUrl
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
+    content = <AddUrl onBack={pop} terminal={terminal} />;
   } else {
-    content = (
-      <TranscriptionList
-        params={listParams}
-        navigation={navigation}
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
+    content = <TranscriptionList params={listParams} navigation={navigation} onBack={pop} terminal={terminal} />;
   }
 
   return (

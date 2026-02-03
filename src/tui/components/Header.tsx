@@ -1,7 +1,6 @@
-import React from "react";
 import { Box, Text } from "ink";
-import { colors } from "../theme";
 import type { ScreenName } from "../hooks/useNavigation";
+import { colors } from "../theme";
 
 const SCREEN_LABELS: Record<ScreenName, string> = {
   dashboard: "Dashboard",
@@ -29,9 +28,7 @@ export function Header({ version, screen, email, plan }: HeaderProps): JSX.Eleme
       <Text color={colors.primary}>
         xevol v{version} · {screenLabel.toLowerCase()}
       </Text>
-      {userInfo ? (
-        <Text color={colors.secondary}>{userInfo}</Text>
-      ) : null}
+      {userInfo ? <Text color={colors.secondary}>{userInfo}</Text> : null}
     </Box>
   );
 }

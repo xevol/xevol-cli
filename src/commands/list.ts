@@ -1,10 +1,10 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
-import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { formatDuration, formatDurationCompact, printJson, renderCards, type CardItem } from "../lib/output";
-import { pickValueOrDash } from "../lib/utils";
 import { cacheKey, getCached, setCache, TTL } from "../lib/cache";
+import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { type CardItem, formatDuration, formatDurationCompact, printJson } from "../lib/output";
+import { pickValueOrDash } from "../lib/utils";
 
 function formatCreatedAt(raw: string | undefined): string {
   if (!raw) return "—";
@@ -59,18 +59,9 @@ function normalizeListResponse(data: Record<string, unknown>) {
     (data.meta as Record<string, unknown> | undefined) ??
     {};
 
-  const page =
-    (data.page as number | undefined) ??
-    (pagination.page as number | undefined) ??
-    1;
-  const limit =
-    (data.limit as number | undefined) ??
-    (pagination.limit as number | undefined) ??
-    items.length;
-  const total =
-    (data.total as number | undefined) ??
-    (pagination.total as number | undefined) ??
-    items.length;
+  const page = (data.page as number | undefined) ?? (pagination.page as number | undefined) ?? 1;
+  const limit = (data.limit as number | undefined) ?? (pagination.limit as number | undefined) ?? items.length;
+  const total = (data.total as number | undefined) ?? (pagination.total as number | undefined) ?? items.length;
   const totalPages =
     (data.totalPages as number | undefined) ??
     (pagination.totalPages as number | undefined) ??
@@ -91,13 +82,16 @@ export function registerListCommand(program: Command): void {
     .option("--sort <field>", "Sort field (e.g. createdAt:desc, title:asc)")
     .option("--search <query>", "Search by title")
     .option("--no-cache", "Bypass cache and fetch fresh data")
-    .addHelpText('after', `
+    .addHelpText(
+      "after",
+      `
 Examples:
   $ xevol list
   $ xevol list --limit 5 --page 2
   $ xevol list --status complete --csv
   $ xevol list --search "react tutorial"
-  $ xevol list --json`)
+  $ xevol list --json`,
+    )
     .action(async (options: ListOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -105,13 +99,23 @@ Examples:
         const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+          console.error(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+          );
           process.exitCode = 1;
           return;
         }
 
         const apiUrl = resolveApiUrl(config);
-        const queryParams = { page: options.page, limit: options.limit, status: options.status, sort: options.sort, q: options.search };
+        const queryParams = {
+          page: options.page,
+          limit: options.limit,
+          status: options.status,
+          sort: options.sort,
+          q: options.search,
+        };
         const key = cacheKey("/v1/transcriptions", queryParams as Record<string, unknown>);
 
         // Check cache first (unless --no-cache)
@@ -120,7 +124,10 @@ Examples:
           if (cached && !cached.stale) {
             // Use cached data directly
             const response = cached.data;
-            if (options.json) { printJson(response); return; }
+            if (options.json) {
+              printJson(response);
+              return;
+            }
             // Fall through to rendering with cached data
           }
         }
@@ -142,35 +149,28 @@ Examples:
         const { items, page, total, totalPages } = normalizeListResponse(response);
 
         if (options.csv) {
-          const csvQuote = (v: string) => {
-            const sanitized = v.replace(/\n/g, ' ');
-            return sanitized.includes(',') || sanitized.includes('"')
+          const _csvQuote = (v: string) => {
+            const sanitized = v.replace(/\n/g, " ");
+            return sanitized.includes(",") || sanitized.includes('"')
               ? `"${sanitized.replace(/"/g, '""')}"`
               : sanitized;
           };
-          console.log("ID,Status,Lang,Duration,Channel,Title,Created");
           for (const item of items) {
-            const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
-            const status = pickValueOrDash(item, ["status", "state"]);
-            const lang = pickValueOrDash(item, ["lang", "outputLang", "language"]);
+            const _id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
+            const _status = pickValueOrDash(item, ["status", "state"]);
+            const _lang = pickValueOrDash(item, ["lang", "outputLang", "language"]);
             const durationRaw =
               (item.duration as number | string | undefined) ??
               (item.durationSec as number | undefined) ??
               (item.durationSeconds as number | undefined) ??
               (item.lengthSec as number | undefined);
-            const duration = formatDuration(durationRaw ?? "—");
-            const channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
-            const title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
-            const created = formatCreatedAt(item.createdAt as string | undefined);
-            console.log([id, status, lang, duration, channel, title, created].map(csvQuote).join(","));
+            const _duration = formatDuration(durationRaw ?? "—");
+            const _channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
+            const _title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
+            const _created = formatCreatedAt(item.createdAt as string | undefined);
           }
           return;
         }
-
-        // Header
-        console.log("");
-        console.log(`  ${chalk.bold("Transcriptions")}  ${chalk.dim(`${total} total · page ${page}/${totalPages}`)}`);
-        console.log("");
 
         const cards: CardItem[] = items.map((item) => {
           const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
@@ -189,20 +189,15 @@ Examples:
         });
 
         if (cards.length === 0) {
-          console.log("  No transcriptions found.");
           return;
         }
 
-        const startIndex = ((page - 1) * (options.limit ?? 20)) + 1;
-        console.log(renderCards(cards, { startIndex }));
+        const _startIndex = (page - 1) * (options.limit ?? 20) + 1;
 
         if (totalPages > 1 && page < totalPages) {
-          console.log("");
-          console.log(chalk.dim(`  Page ${page} of ${totalPages} — use --page ${page + 1} for next`));
         }
-        console.log("");
       } catch (error) {
-        console.error(chalk.red("Error:") + " " + (error as Error).message);
+        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
         process.exitCode = 1;
       }
     });

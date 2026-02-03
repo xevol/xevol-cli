@@ -25,10 +25,7 @@ export interface SSEOptions {
  * an event stream, yields a single synthetic event with type "complete" and
  * the full JSON body as data, then returns.
  */
-export async function* streamSSE(
-  path: string,
-  options: SSEOptions,
-): AsyncGenerator<SSEEvent, void, undefined> {
+export async function* streamSSE(path: string, options: SSEOptions): AsyncGenerator<SSEEvent, void, undefined> {
   const url = new URL(path, options.apiUrl);
 
   const headers: Record<string, string> = {

@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
-import { useApi } from "../hooks/useApi";
-import { Spinner } from "../components/Spinner";
-import { colors } from "../theme";
-import { pickValueOrDash } from "../../lib/utils";
-import { formatTimeAgo } from "../utils/time";
+import { useEffect, useMemo, useState } from "react";
 import { getHistory, type HistoryEntry } from "../../lib/history";
-import type { NavigationState } from "../hooks/useNavigation";
-import { useLayout } from "../context/LayoutContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema } from "../../lib/schemas";
+import { pickValueOrDash } from "../../lib/utils";
+import { Spinner } from "../components/Spinner";
+import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import type { NavigationState } from "../hooks/useNavigation";
+import { colors } from "../theme";
+import { formatTimeAgo } from "../utils/time";
 
 // Module-level cache to avoid flash on re-mount
 let _historyCache: HistoryEntry[] | null = null;
@@ -19,7 +19,7 @@ interface DashboardProps {
   navigation: Pick<NavigationState, "push">;
 }
 
-const LOGO_LINES = [
+const _LOGO_LINES = [
   "                          ██ ",
   "  ██ ██ ▄█▀█▄ ██ ██ ▄███▄ ██ ",
   "   ███  ██▄█▀ ██▄██ ██ ██ ██ ",
@@ -74,7 +74,7 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     })();
   }, []);
 
-  const hasLocalHistory = historyItems.length > 0;
+  const _hasLocalHistory = historyItems.length > 0;
 
   // API recent — only fetch if no local history
   const {
@@ -91,7 +91,9 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
   );
 
   // Validate response
-  const recentData = rawRecentData ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent") : null;
+  const recentData = rawRecentData
+    ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent")
+    : null;
 
   // Suppress loading indicator when we have data (useApi provides stale-while-revalidate)
   const recentLoading = rawRecentLoading && !recentData;

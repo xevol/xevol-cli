@@ -87,7 +87,7 @@ export async function apiFetch<T = unknown>(
 
   // Apply Bearer token auth — this is the primary way CLI authenticates.
   // The token comes from the local config file (written by `xevol login`).
-  let requestHeaders = new Headers(applyAuthHeaders(headers ?? {}, token));
+  const requestHeaders = new Headers(applyAuthHeaders(headers ?? {}, token));
 
   if (config?.workspaceId && !requestHeaders.has("X-Workspace-Id")) {
     requestHeaders.set("X-Workspace-Id", config.workspaceId);

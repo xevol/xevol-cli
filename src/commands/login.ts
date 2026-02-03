@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { clearConfig, getTokenOverride, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
 import { printJson, startSpinner } from "../lib/output";
@@ -12,7 +12,7 @@ import { pickNumberField, pickSessionField } from "../lib/utils";
  * and the plan/usage data may come from different fields depending on
  * what the API returns. This function tries multiple paths to extract the data.
  */
-function formatWhoami(data: Record<string, unknown>): string {
+function _formatWhoami(data: Record<string, unknown>): string {
   // Email could be at data.email, data.user.email, or data.session.email
   const email = pickSessionField(data, "email") ?? "Unknown";
 
@@ -41,7 +41,7 @@ function formatWhoami(data: Record<string, unknown>): string {
 }
 
 /** Format seconds into a human-readable expiry string (e.g., "5 min", "30 sec"). */
-function formatExpiry(expiresInSeconds: number): string {
+function _formatExpiry(expiresInSeconds: number): string {
   if (!Number.isFinite(expiresInSeconds) || expiresInSeconds <= 0) return "soon";
   if (expiresInSeconds < 90) return `${Math.ceil(expiresInSeconds)} sec`;
   const minutes = Math.ceil(expiresInSeconds / 60);
@@ -54,9 +54,9 @@ function formatExpiry(expiresInSeconds: number): string {
  */
 async function openBrowser(url: string): Promise<void> {
   try {
-    const { execFile } = await import("child_process");
+    const { execFile } = await import("node:child_process");
     const opener = process.platform === "darwin" ? "open" : "xdg-open";
-    execFile(opener, [url], (err) => {
+    execFile(opener, [url], (_err) => {
       // Best-effort; user still has the printed URL.
     });
   } catch {
@@ -115,7 +115,11 @@ export function registerAuthCommands(program: Command): void {
         if (tokenOverride) {
           const { token, expired } = resolveToken(config, tokenOverride);
           if (!token) {
-            console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Token required. Use --token <token> or set XEVOL_TOKEN.");
+            console.error(
+              expired
+                ? "Token expired. Run `xevol login` to re-authenticate."
+                : "Token required. Use --token <token> or set XEVOL_TOKEN.",
+            );
             process.exitCode = 1;
             return;
           }
@@ -148,8 +152,7 @@ export function registerAuthCommands(program: Command): void {
             return;
           }
 
-          const label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
-          console.log(`${chalk.green("✓")} ${label}`);
+          const _label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
           return;
         }
 
@@ -185,12 +188,6 @@ export function registerAuthCommands(program: Command): void {
 
         // Try to open the browser automatically — best effort
         await openBrowser(verificationLink.toString());
-
-        // Always print the URL so the user can copy-paste if browser didn't open
-        console.log("Open this URL to authenticate:");
-        console.log(`  ${verificationLink.toString()}`);
-        console.log("");
-        console.log(`Waiting for approval... (expires in ${formatExpiry(expiresIn)})`);
 
         // Step 3: Poll /device-token until approved or expired.
         // Show a spinner so the user knows we're waiting.
@@ -252,8 +249,7 @@ export function registerAuthCommands(program: Command): void {
                 return;
               }
 
-              const label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
-              console.log(`${chalk.green("✓")} ${label}`);
+              const _label = email ? `Logged in as ${chalk.bold(email)}` : "Logged in";
               return;
             }
 
@@ -305,7 +301,6 @@ export function registerAuthCommands(program: Command): void {
         const token = storedToken ?? resolvedToken;
 
         if (!token) {
-          console.log(expired ? "Token expired. Run `xevol login` to re-authenticate." : "You are not logged in.");
           return;
         }
 
@@ -328,8 +323,6 @@ export function registerAuthCommands(program: Command): void {
           printJson(response);
           return;
         }
-
-        console.log(`${chalk.green("✓")} Logged out`);
       } catch (error) {
         console.error((error as Error).message);
         process.exitCode = 1;
@@ -353,7 +346,11 @@ export function registerAuthCommands(program: Command): void {
         const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login to authenticate.");
+          console.error(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login to authenticate.",
+          );
           process.exitCode = 1;
           return;
         }
@@ -370,8 +367,6 @@ export function registerAuthCommands(program: Command): void {
           printJson(session);
           return;
         }
-
-        console.log(formatWhoami(session));
       } catch (error) {
         console.error((error as Error).message);
         process.exitCode = 1;

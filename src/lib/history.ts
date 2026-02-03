@@ -1,6 +1,6 @@
-import { promises as fs } from "fs";
-import os from "os";
-import path from "path";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const HISTORY_DIR = path.join(os.homedir(), ".xevol");
 const HISTORY_PATH = path.join(HISTORY_DIR, "history.json");
@@ -43,7 +43,7 @@ export async function addToHistory(id: string, title: string): Promise<void> {
   const trimmed = filtered.slice(0, MAX_ENTRIES);
 
   await ensureDir();
-  await fs.writeFile(HISTORY_PATH, JSON.stringify(trimmed, null, 2) + "\n", {
+  await fs.writeFile(HISTORY_PATH, `${JSON.stringify(trimmed, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });

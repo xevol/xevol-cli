@@ -1,6 +1,6 @@
-import { Command } from "commander";
+import { createInterface } from "node:readline";
 import chalk from "chalk";
-import { createInterface } from "readline";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { printJson, startSpinner } from "../lib/output";
@@ -66,10 +66,8 @@ export function registerDeleteCommand(program: Command): void {
           printJson(response);
           return;
         }
-
-        console.log(chalk.green("✓") + ` Deleted ${id}`);
       } catch (error) {
-        console.error(chalk.red("Error:") + " " + (error as Error).message);
+        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
         process.exitCode = 1;
       }
     });

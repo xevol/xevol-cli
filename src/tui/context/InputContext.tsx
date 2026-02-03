@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from "react";
+import type React from "react";
+import { createContext, useContext, useState } from "react";
 
 interface InputContextValue {
   isInputActive: boolean;
@@ -14,9 +15,5 @@ export const useInputLock = () => useContext(InputContext);
 
 export function InputProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [isInputActive, setInputActive] = useState(false);
-  return (
-    <InputContext.Provider value={{ isInputActive, setInputActive }}>
-      {children}
-    </InputContext.Provider>
-  );
+  return <InputContext.Provider value={{ isInputActive, setInputActive }}>{children}</InputContext.Provider>;
 }

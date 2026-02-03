@@ -1,6 +1,6 @@
-import { exec } from "child_process";
-import { platform } from "os";
-import { existsSync } from "fs";
+import { exec } from "node:child_process";
+import { existsSync } from "node:fs";
+import { platform } from "node:os";
 
 type ClipboardTool = { cmd: string; args: string[] };
 
@@ -20,7 +20,7 @@ function detectClipboardTool(): ClipboardTool | null {
     // WSL detection
     try {
       if (existsSync("/proc/version")) {
-        const { readFileSync } = require("fs");
+        const { readFileSync } = require("node:fs");
         const procVersion = readFileSync("/proc/version", "utf8");
         if (/microsoft|wsl/i.test(procVersion)) {
           return { cmd: "clip.exe", args: [] };

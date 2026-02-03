@@ -1,5 +1,5 @@
+import { createHash } from "node:crypto";
 import chalk from "chalk";
-import { createHash } from "crypto";
 
 /** Module-level ANSI stripping regex (#8) */
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
@@ -7,7 +7,7 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
 /**
  * Strip ANSI escape codes from a string.
  */
-function stripAnsi(text: string): string {
+function _stripAnsi(text: string): string {
   ANSI_RE.lastIndex = 0;
   return text.replace(ANSI_RE, "");
 }
@@ -92,7 +92,7 @@ export function parseMarkdownStructure(markdown: string, width: number): string[
     if (bulletMatch) {
       const indent = Math.min(bulletMatch[1].length, 8);
       const content = stripInlineMarkdown(bulletMatch[2]);
-      const prefix = " ".repeat(indent) + "• ";
+      const prefix = `${" ".repeat(indent)}• `;
       for (const wrapped of wrapPlainText(content, width - prefix.length)) {
         lines.push(`───BULLET${indent}───${prefix}${wrapped}`);
       }
@@ -103,7 +103,7 @@ export function parseMarkdownStructure(markdown: string, width: number): string[
     if (numMatch) {
       const indent = Math.min(numMatch[1].length, 8);
       const content = stripInlineMarkdown(numMatch[2]);
-      const prefix = " ".repeat(indent) + "  ";
+      const prefix = `${" ".repeat(indent)}  `;
       for (const wrapped of wrapPlainText(content, width - prefix.length)) {
         lines.push(`───NUM${indent}───${prefix}${wrapped}`);
       }

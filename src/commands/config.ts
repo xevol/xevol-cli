@@ -1,15 +1,15 @@
-import { Command } from "commander";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import chalk from "chalk";
-import { promises as fs } from "fs";
-import os from "os";
-import path from "path";
+import type { Command } from "commander";
 
 const CONFIG_DIR = path.join(os.homedir(), ".xevol");
 const USER_CONFIG_PATH = path.join(CONFIG_DIR, "config.json");
 
 /** Allowed config keys and their descriptions */
 const ALLOWED_KEYS: Record<string, string> = {
-  "apiUrl": "Base API URL",
+  apiUrl: "Base API URL",
   "default.lang": "Default output language for transcriptions",
   "default.limit": "Default page size for list command",
   "api.timeout": "API request timeout in milliseconds",
@@ -37,7 +37,7 @@ async function readUserConfig(): Promise<UserConfig> {
       return {};
     }
     if (error instanceof SyntaxError) {
-      console.error(chalk.yellow("Warning:") + " config.json is corrupt, starting fresh.");
+      console.error(`${chalk.yellow("Warning:")} config.json is corrupt, starting fresh.`);
       return {};
     }
     throw error;
@@ -46,7 +46,7 @@ async function readUserConfig(): Promise<UserConfig> {
 
 async function writeUserConfig(config: UserConfig): Promise<void> {
   await fs.mkdir(CONFIG_DIR, { recursive: true });
-  const payload = JSON.stringify(config, null, 2) + "\n";
+  const payload = `${JSON.stringify(config, null, 2)}\n`;
   await fs.writeFile(USER_CONFIG_PATH, payload, { encoding: "utf8", mode: 0o600 });
 }
 
@@ -74,9 +74,7 @@ function setNestedValue(obj: UserConfig, dotKey: string, value: unknown): void {
 }
 
 export function registerConfigCommand(program: Command): void {
-  const configCmd = program
-    .command("config", { hidden: true })
-    .description("Manage local CLI configuration");
+  const configCmd = program.command("config", { hidden: true }).description("Manage local CLI configuration");
 
   configCmd
     .command("get")
@@ -85,7 +83,7 @@ export function registerConfigCommand(program: Command): void {
     .action(async (key: string) => {
       try {
         if (!(key in ALLOWED_KEYS)) {
-          console.error(chalk.red("Error:") + ` Unknown config key: ${key}`);
+          console.error(`${chalk.red("Error:")} Unknown config key: ${key}`);
           console.error(`Allowed keys: ${Object.keys(ALLOWED_KEYS).join(", ")}`);
           process.exitCode = 1;
           return;
@@ -95,12 +93,10 @@ export function registerConfigCommand(program: Command): void {
         const value = getNestedValue(config, key);
 
         if (value === undefined) {
-          console.log(chalk.dim("(not set)"));
         } else {
-          console.log(String(value));
         }
       } catch (error) {
-        console.error(chalk.red("Error:") + " " + (error as Error).message);
+        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
         process.exitCode = 1;
       }
     });
@@ -113,7 +109,7 @@ export function registerConfigCommand(program: Command): void {
     .action(async (key: string, value: string) => {
       try {
         if (!(key in ALLOWED_KEYS)) {
-          console.error(chalk.red("Error:") + ` Unknown config key: ${key}`);
+          console.error(`${chalk.red("Error:")} Unknown config key: ${key}`);
           console.error(`Allowed keys: ${Object.keys(ALLOWED_KEYS).join(", ")}`);
           process.exitCode = 1;
           return;
@@ -126,7 +122,7 @@ export function registerConfigCommand(program: Command): void {
         if (key === "default.limit" || key === "api.timeout") {
           const num = Number(value);
           if (!Number.isFinite(num) || num <= 0) {
-            console.error(chalk.red("Error:") + ` ${key} must be a positive number`);
+            console.error(`${chalk.red("Error:")} ${key} must be a positive number`);
             process.exitCode = 1;
             return;
           }
@@ -135,9 +131,8 @@ export function registerConfigCommand(program: Command): void {
 
         setNestedValue(config, key, parsedValue);
         await writeUserConfig(config);
-        console.log(`${chalk.green("✔")} ${key} = ${value}`);
       } catch (error) {
-        console.error(chalk.red("Error:") + " " + (error as Error).message);
+        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
         process.exitCode = 1;
       }
     });
@@ -152,15 +147,13 @@ export function registerConfigCommand(program: Command): void {
         for (const key of Object.keys(ALLOWED_KEYS)) {
           const value = getNestedValue(config, key);
           if (value !== undefined) {
-            console.log(`${chalk.dim(key)} = ${value}`);
             hasValues = true;
           }
         }
         if (!hasValues) {
-          console.log(chalk.dim("No config values set."));
         }
       } catch (error) {
-        console.error(chalk.red("Error:") + " " + (error as Error).message);
+        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
         process.exitCode = 1;
       }
     });

@@ -1,9 +1,9 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
+import { streamSpikeToTerminal } from "../commands/stream";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { divider, printJson, startSpinner } from "../lib/output";
-import { streamSpikeToTerminal } from "../commands/stream";
+import { printJson, startSpinner } from "../lib/output";
 
 interface SpikesOptions {
   generate?: boolean;
@@ -37,7 +37,13 @@ function extractResultText(result: Record<string, unknown>): string | undefined 
   return value;
 }
 
-async function fetchAnalysis(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
+async function fetchAnalysis(
+  transcriptionId: string,
+  token: string,
+  apiUrl: string,
+  promptId = "review",
+  outputLang = "en",
+) {
   // POST /spikes/:id both creates and returns analysis (idempotent).
   // If analysis with the same promptId+outputLang already exists, the API returns it directly.
   return (await apiFetch(`/spikes/${transcriptionId}`, {
@@ -48,7 +54,13 @@ async function fetchAnalysis(transcriptionId: string, token: string, apiUrl: str
   })) as Record<string, unknown>;
 }
 
-async function waitForAnalysis(transcriptionId: string, token: string, apiUrl: string, promptId = "review", outputLang = "en") {
+async function waitForAnalysis(
+  transcriptionId: string,
+  token: string,
+  apiUrl: string,
+  promptId = "review",
+  outputLang = "en",
+) {
   const spinner = startSpinner("Generating analysis...");
   const started = Date.now();
   const maxAttempts = 120;
@@ -88,11 +100,14 @@ export function registerAnalyzeCommand(program: Command): void {
     .option("--lang <code>", "Output language", "en")
     .option("--json", "Raw JSON output")
     .option("--no-stream", "Disable live streaming (use polling instead)")
-    .addHelpText('after', `
+    .addHelpText(
+      "after",
+      `
 Examples:
   $ xevol analyze abc123
   $ xevol analyze abc123 --prompt facts --lang kk
-  $ xevol analyze abc123 --generate --prompt review --json`)
+  $ xevol analyze abc123 --generate --prompt review --json`,
+    )
     .action(async (id: string, options: SpikesOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -100,7 +115,11 @@ Examples:
         const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+          console.error(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+          );
           process.exitCode = 1;
           return;
         }
@@ -120,17 +139,11 @@ Examples:
         if (results.length === 0 && spikeId) {
           if (useStreaming) {
             // Print title/header before streaming
-            const title =
-              (response.title as string | undefined) ??
-              (response.transcriptionTitle as string | undefined) ??
-              id;
-
-            console.log(chalk.bold(`Analysis for "${title}"`));
-            console.log(divider());
+            const _title =
+              (response.title as string | undefined) ?? (response.transcriptionTitle as string | undefined) ?? id;
 
             const result = await streamSpikeToTerminal(spikeId, token, apiUrl);
             if (!result.content) {
-              console.log("No analysis content available.");
             }
             return;
           }
@@ -150,14 +163,11 @@ Examples:
           return;
         }
 
-        const title =
+        const _title =
           (response.title as string | undefined) ??
           (response.transcriptionTitle as string | undefined) ??
           (results[0]?.title as string | undefined) ??
           id;
-
-        console.log(chalk.bold(`Analysis for "${title}"`));
-        console.log(divider());
 
         const content = results
           .map((result) => extractResultText(result))
@@ -165,12 +175,10 @@ Examples:
           .join("\n\n");
 
         if (content) {
-          console.log(content);
         } else {
-          console.log("No analysis content available.");
         }
       } catch (error) {
-        console.error(chalk.red("Error:") + " " + (error as Error).message);
+        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
         process.exitCode = 1;
       }
     });

@@ -1,15 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { useApi } from "../hooks/useApi";
+import React, { useEffect, useMemo, useState } from "react";
+import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
+import { type SSEEvent, streamSSE } from "../../lib/sse";
+import { pickValue } from "../../lib/utils";
 import { Spinner } from "../components/Spinner";
 import { StatusBadge } from "../components/StatusBadge";
-import { colors } from "../theme";
-import { pickValue } from "../../lib/utils";
-import { wrapText } from "../utils/wrapText";
-import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
-import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
-import { streamSSE, type SSEEvent } from "../../lib/sse";
 import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import { colors } from "../theme";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
 
 interface TerminalSize {
   columns: number;
@@ -37,9 +36,7 @@ function normalizeSpikes(data: Record<string, unknown>): RawItem[] {
 function spikeLabel(item: RawItem, maxLen = 40): string {
   // Prefer explicit name/title fields
   const name =
-    (item.promptName as string | undefined) ??
-    (item.name as string | undefined) ??
-    (item.title as string | undefined);
+    (item.promptName as string | undefined) ?? (item.name as string | undefined) ?? (item.title as string | undefined);
   if (name) return name.length > maxLen ? `${name.slice(0, maxLen)}…` : name;
 
   // Fall back to prompt text — truncate to first sentence or maxLen
@@ -234,7 +231,7 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
   }, [activeSpike]);
 
   const contentWidth = Math.max(20, terminal.columns - 4);
-  const spikeContent = activeSpike ? (streamContent || getSpikeContent(activeSpike)) : "";
+  const spikeContent = activeSpike ? streamContent || getSpikeContent(activeSpike) : "";
   const parsedLines = useMemo(
     () => parseMarkdownStructure(spikeContent || "No spike content available.", contentWidth),
     [spikeContent, contentWidth],
@@ -320,9 +317,7 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
 
       {!loading && !error && activeSpike && (
         <Box flexDirection="column">
-          <Text color={colors.primary}>
-            Spike: {spikeLabel(activeSpike)}
-          </Text>
+          <Text color={colors.primary}>Spike: {spikeLabel(activeSpike)}</Text>
           {streaming && (
             <Box marginTop={1}>
               <Text color={colors.secondary}>streaming…</Text>
@@ -350,9 +345,7 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
             return (
               <Box key={pickValue(item, ["id", "spikeId"]) ?? `${promptName}-${index}`}>
                 <Box width={2}>
-                  <Text color={isSelected ? colors.primary : colors.secondary}>
-                    {isSelected ? "›" : " "}
-                  </Text>
+                  <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
                 </Box>
                 <Box flexDirection="row">
                   <StatusBadge status={status} />
