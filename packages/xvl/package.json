@@ -1,0 +1,23 @@
+{
+  "name": "xvl",
+  "version": "0.2.2",
+  "description": "Shorthand for xevol CLI — your info manager",
+  "bin": {
+    "xvl": "./bin/xvl.js"
+  },
+  "dependencies": {
+    "xevol": ">=0.2.2"
+  },
+  "files": [
+    "bin"
+  ],
+  "author": "Kuan <kuka@xevol.com>",
+  "license": "UNLICENSED",
+  "private": false,
+  "keywords": ["xevol", "xvl", "cli"],
+  "homepage": "https://xevol.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xevol/xevol-cli"
+  }
+}
