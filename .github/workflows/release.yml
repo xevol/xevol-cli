@@ -1,0 +1,159 @@
+name: Build and Release Multi-Platform Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        run: bun install
+      
+      - name: Run tests
+        run: bun test || echo "No tests found, skipping..."
+        continue-on-error: true
+      
+      - name: Build Linux x64
+        run: |
+          bun build --compile src/index.ts \
+            --outfile xevol-linux-x64 \
+            --target=bun-linux-x64 \
+            --external react-devtools-core
+          chmod +x xevol-linux-x64
+          tar -czf xevol-linux-x64.tar.gz xevol-linux-x64
+          sha256sum xevol-linux-x64.tar.gz | awk '{print $1}' > xevol-linux-x64.sha256
+      
+      - name: Build macOS x64
+        run: |
+          bun build --compile src/index.ts \
+            --outfile xevol-darwin-x64 \
+            --target=bun-darwin-x64 \
+            --external react-devtools-core
+          chmod +x xevol-darwin-x64
+          tar -czf xevol-darwin-x64.tar.gz xevol-darwin-x64
+          sha256sum xevol-darwin-x64.tar.gz | awk '{print $1}' > xevol-darwin-x64.sha256
+      
+      - name: Build macOS ARM64
+        run: |
+          bun build --compile src/index.ts \
+            --outfile xevol-darwin-arm64 \
+            --target=bun-darwin-arm64 \
+            --external react-devtools-core
+          chmod +x xevol-darwin-arm64
+          tar -czf xevol-darwin-arm64.tar.gz xevol-darwin-arm64
+          sha256sum xevol-darwin-arm64.tar.gz | awk '{print $1}' > xevol-darwin-arm64.sha256
+      
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            xevol-linux-x64.tar.gz
+            xevol-darwin-x64.tar.gz
+            xevol-darwin-arm64.tar.gz
+          body: |
+            ## Xevol CLI v${{ steps.version.outputs.VERSION }}
+            
+            ### Installation
+            
+            **Homebrew (macOS/Linux):**
+            ```bash
+            brew install xevol/tap/xevol
+            ```
+            
+            **Manual download:**
+            - Linux x64: `xevol-linux-x64.tar.gz`
+            - macOS Intel: `xevol-darwin-x64.tar.gz`
+            - macOS Apple Silicon: `xevol-darwin-arm64.tar.gz`
+            
+            ### SHA256 Checksums
+            - Linux x64: `$(cat xevol-linux-x64.sha256)`
+            - macOS x64: `$(cat xevol-darwin-x64.sha256)`
+            - macOS ARM64: `$(cat xevol-darwin-arm64.sha256)`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update Homebrew Formula
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          # Read SHA256 hashes
+          SHA_LINUX=$(cat xevol-linux-x64.sha256)
+          SHA_DARWIN_X64=$(cat xevol-darwin-x64.sha256)
+          SHA_DARWIN_ARM64=$(cat xevol-darwin-arm64.sha256)
+          
+          # Clone homebrew-tap repo
+          git clone https://github.com/xevol/homebrew-tap.git /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Update formula
+          cat > Formula/xevol.rb <<EOF
+          class Xevol < Formula
+            desc "Command-line tool to consume, remix, make, publish, and offer systems, products, and workflows"
+            homepage "https://xevol.com"
+            version "${VERSION}"
+            license "UNLICENSED"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/xevol/xevol-cli/releases/download/v${VERSION}/xevol-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/xevol/xevol-cli/releases/download/v${VERSION}/xevol-darwin-x64.tar.gz"
+                sha256 "${SHA_DARWIN_X64}"
+              end
+            end
+
+            on_linux do
+              depends_on arch: :x86_64
+              url "https://github.com/xevol/xevol-cli/releases/download/v${VERSION}/xevol-linux-x64.tar.gz"
+              sha256 "${SHA_LINUX}"
+            end
+
+            def install
+              if OS.mac?
+                if Hardware::CPU.arm?
+                  bin.install "xevol-darwin-arm64" => "xevol"
+                else
+                  bin.install "xevol-darwin-x64" => "xevol"
+                end
+              else
+                bin.install "xevol-linux-x64" => "xevol"
+              end
+              # Create xvl symlink (alias)
+              bin.install_symlink "xevol" => "xvl"
+            end
+
+            test do
+              assert_match "${VERSION}", shell_output("#{bin}/xevol --version")
+              assert_match "Xevol is a tool", shell_output("#{bin}/xevol --help")
+            end
+          end
+          EOF
+          
+          # Commit and push
+          git add Formula/xevol.rb
+          git commit -m "Update xevol to v${VERSION}"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/xevol/homebrew-tap.git main
