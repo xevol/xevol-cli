@@ -11,12 +11,14 @@ import { registerPromptsCommand } from "./commands/prompts";
 import { registerStreamCommand } from "./commands/stream";
 import { registerResumeCommand } from "./commands/resume";
 import { registerConfigCommand } from "./commands/config";
+import { registerUsageCommand } from "./commands/usage";
+import { registerExportCommand } from "./commands/export";
 import { printHeader } from "./lib/header";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
-const SKIP_HEADER_COMMANDS = new Set(["login", "config"]);
+const SKIP_HEADER_COMMANDS = new Set(["login", "config", "export"]);
 
 function shouldShowHeader(): boolean {
   const args = process.argv.slice(2);
@@ -59,6 +61,8 @@ registerPromptsCommand(program);
 registerStreamCommand(program);
 registerResumeCommand(program);
 registerConfigCommand(program);
+registerUsageCommand(program);
+registerExportCommand(program);
 
 // Show header + help when invoked with no arguments
 const args = process.argv.slice(2);
