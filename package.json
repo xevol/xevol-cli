@@ -1,11 +1,11 @@
 {
   "name": "xevol",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Xevol is a tool to consume, remix, make, publish, and offer systems, products, and workflows.",
   "type": "module",
   "bin": {
-    "xvl": "./dist/index.js",
-    "xevol": "./dist/index.js"
+    "xvl": "dist/index.js",
+    "xevol": "dist/index.js"
   },
   "scripts": {
     "dev": "bun run src/index.ts",
