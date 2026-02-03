@@ -9,6 +9,7 @@ export interface XevolConfig {
   accountId?: string;
   email?: string;
   expiresAt?: string;
+  workspaceId?: string;
 }
 
 export const DEFAULT_API_URL = "https://api.xevol.com";

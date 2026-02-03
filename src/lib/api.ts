@@ -1,4 +1,4 @@
-import { resolveApiUrl } from "./config";
+import { readConfig, resolveApiUrl } from "./config";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -80,16 +80,21 @@ export async function apiFetch<T = unknown>(
   path: string,
   { method, query, body, headers, token, apiUrl }: ApiRequestOptions = {},
 ): Promise<T> {
+  const config = await readConfig();
   const url = buildRequestUrl(path, query, apiUrl);
 
   // Apply Bearer token auth — this is the primary way CLI authenticates.
   // The token comes from the local config file (written by `xevol login`).
-  const requestHeaders = applyAuthHeaders(headers ?? {}, token);
+  let requestHeaders = new Headers(applyAuthHeaders(headers ?? {}, token));
+
+  if (config?.workspaceId && !requestHeaders.has("X-Workspace-Id")) {
+    requestHeaders.set("X-Workspace-Id", config.workspaceId);
+  }
 
   // Auto-set Content-Type for JSON bodies. FormData handles its own
   // Content-Type (with boundary) so we don't touch it.
   if (body !== undefined && !(body instanceof FormData)) {
-    (requestHeaders as Headers).set("Content-Type", "application/json");
+    requestHeaders.set("Content-Type", "application/json");
   }
 
   let response: Response;

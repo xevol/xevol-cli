@@ -15,12 +15,13 @@ import { registerUsageCommand } from "./commands/usage";
 import { registerExportCommand } from "./commands/export";
 import { registerDeleteCommand } from "./commands/delete";
 import { registerOpenCommand } from "./commands/open";
+import { registerWorkspaceCommand } from "./commands/workspace";
 import { printHeader } from "./lib/header";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
-const SKIP_HEADER_COMMANDS = new Set(["login", "config", "export", "delete", "open"]);
+const SKIP_HEADER_COMMANDS = new Set(["login", "config", "export", "delete", "open", "workspace"]);
 
 function shouldShowHeader(): boolean {
   const args = process.argv.slice(2);
@@ -67,6 +68,7 @@ registerUsageCommand(program);
 registerExportCommand(program);
 registerDeleteCommand(program);
 registerOpenCommand(program);
+registerWorkspaceCommand(program);
 
 // Show header + help when invoked with no arguments
 const args = process.argv.slice(2);

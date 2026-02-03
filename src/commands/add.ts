@@ -1,4 +1,5 @@
 import { Command, Option } from "commander";
+import { readFile } from "node:fs/promises";
 import chalk from "chalk";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
@@ -17,6 +18,8 @@ interface AddOptions {
   wait?: boolean;
   noWait?: boolean;
   json?: boolean;
+  batch?: string;
+  concurrency?: number;
   analyze?: string;
   spikes?: string;  // hidden alias for backwards compat
   stream?: boolean;
@@ -65,12 +68,135 @@ async function waitForCompletion(id: string, token: string, apiUrl: string) {
   }
 }
 
+interface BatchResult {
+  url: string;
+  ok: boolean;
+  id?: string;
+  status?: string;
+  error?: string;
+  response?: Record<string, unknown>;
+}
+
+async function submitBatchUrl(
+  url: string,
+  token: string,
+  apiUrl: string,
+  outputLang: string | undefined,
+): Promise<BatchResult> {
+  if (!YOUTUBE_URL_RE.test(url)) {
+    return { url, ok: false, error: "Not a valid YouTube URL." };
+  }
+
+  try {
+    const response = (await apiFetch("/v1/add", {
+      query: { url, outputLang },
+      token,
+      apiUrl,
+    })) as Record<string, unknown>;
+
+    const id = extractId(response);
+    const status = extractStatus(response) ?? "pending";
+
+    if (!id) {
+      return { url, ok: false, error: "No ID returned.", response };
+    }
+
+    return { url, ok: true, id, status, response };
+  } catch (error) {
+    return { url, ok: false, error: (error as Error).message };
+  }
+}
+
+async function runBatchAdd(
+  filePath: string,
+  options: AddOptions,
+  command: Command,
+): Promise<void> {
+  const config = (await readConfig()) ?? {};
+  const tokenOverride = getTokenOverride(options as { token?: string }, command);
+  const { token, expired } = resolveToken(config, tokenOverride);
+
+  if (!token) {
+    console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const concurrency = options.concurrency ?? 3;
+  if (!Number.isFinite(concurrency) || concurrency < 1) {
+    console.error(chalk.red("Error:") + " Concurrency must be a positive number.");
+    process.exitCode = 1;
+    return;
+  }
+
+  let rawFile = "";
+  try {
+    rawFile = await readFile(filePath, "utf8");
+  } catch (error) {
+    console.error(chalk.red("Error:") + ` Unable to read batch file: ${filePath}`);
+    console.error((error as Error).message);
+    process.exitCode = 1;
+    return;
+  }
+
+  const urls = rawFile
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+
+  if (urls.length === 0) {
+    console.error(chalk.red("Error:") + " No URLs found in batch file.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const apiUrl = resolveApiUrl(config);
+  const outputLang = options.lang ?? "en";
+  const results: BatchResult[] = new Array(urls.length);
+  const logProgress = options.json ? (message: string) => console.error(message) : console.log;
+  const workerCount = Math.min(concurrency, urls.length);
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= urls.length) break;
+
+      const url = urls[index];
+      const result = await submitBatchUrl(url, token, apiUrl, outputLang);
+      results[index] = result;
+
+      if (result.ok) {
+        logProgress(`${chalk.green("✓")} ${url} → ${result.id}`);
+      } else {
+        logProgress(`${chalk.red("✗")} ${url} → ${result.error ?? "Unknown error"}`);
+      }
+    }
+  });
+
+  await Promise.all(workers);
+
+  const successCount = results.filter((result) => result.ok).length;
+  const failureCount = results.length - successCount;
+
+  if (options.json) {
+    printJson(results);
+    console.error(`Summary: ${successCount} succeeded, ${failureCount} failed`);
+    return;
+  }
+
+  console.log(`Summary: ${successCount} succeeded, ${failureCount} failed`);
+}
+
 export function registerAddCommand(program: Command): void {
   program
     .command("add")
     .description("Submit a YouTube URL for transcription")
     .argument("<youtubeUrl>", "YouTube URL")
     .option("--lang <code>", "Output language", "en")
+    .option("--batch <file>", "Read URLs from a file (one per line)")
+    .option("--concurrency <n>", "Max parallel requests", (value) => Number.parseInt(value, 10), 3)
     .option("--no-wait", "Don't wait for completion (fire-and-forget)")
     .option("--analyze <prompts>", "Comma-separated prompt IDs to generate analysis after transcription")
     .addOption(new Option("--spikes <prompts>").hideHelp())
@@ -81,9 +207,15 @@ Examples:
   $ xevol add "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   $ xevol add "https://youtu.be/dQw4w9WgXcQ" --lang kk
   $ xevol add "https://www.youtube.com/watch?v=..." --analyze review,summary --stream
-  $ xevol add "https://www.youtube.com/watch?v=..." --no-wait`)
+  $ xevol add "https://www.youtube.com/watch?v=..." --no-wait
+  $ xevol add --batch urls.txt --concurrency 5`)
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
+        if (options.batch) {
+          await runBatchAdd(options.batch, options, command);
+          return;
+        }
+
         // Validate YouTube URL before doing anything
         if (!YOUTUBE_URL_RE.test(youtubeUrl)) {
           console.error(chalk.red("Error:") + " Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...");
