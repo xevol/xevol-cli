@@ -108,13 +108,13 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
   useEffect(() => {
     if (activeSpike) {
       setFooterHints([
-        { key: "↑/↓", description: "scroll" },
+        { key: "↑/↓/j/k", description: "scroll" },
         { key: "r", description: "retry" },
         { key: "Esc", description: "back" },
       ]);
     } else {
       setFooterHints([
-        { key: "↑/↓", description: "move" },
+        { key: "↑/↓/j/k", description: "move" },
         { key: "Enter", description: "view" },
         { key: "r", description: "refresh" },
         { key: "Esc", description: "back" },
@@ -273,12 +273,12 @@ export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Ele
       return;
     }
 
-    if (key.upArrow && spikes.length > 0) {
+    if ((key.upArrow || lower === "k") && spikes.length > 0) {
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
     }
 
-    if (key.downArrow && spikes.length > 0) {
+    if ((key.downArrow || lower === "j") && spikes.length > 0) {
       setSelectedIndex((prev) => Math.min(spikes.length - 1, prev + 1));
       return;
     }

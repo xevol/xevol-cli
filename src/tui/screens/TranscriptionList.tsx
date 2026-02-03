@@ -97,6 +97,48 @@ function PreviewContent({ summary, width, maxLines }: { summary: string; width: 
   return <Text>{rendered}</Text>;
 }
 
+interface ListRowProps {
+  item: {
+    id: string;
+    title: string;
+    titleHighlighted: string;
+    titleIndices: number[];
+    channel: string;
+    status: string;
+    duration: string;
+    created: string;
+  };
+  isSelected: boolean;
+  isChecked: boolean;
+  searchQuery: string;
+}
+
+const ListRow = React.memo(function ListRow({ item, isSelected, isChecked, searchQuery }: ListRowProps) {
+  return (
+    <Box key={item.id} flexDirection="row" marginBottom={1}>
+      <Box width={2}>
+        <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
+      </Box>
+      <Box width={3}>
+        <Text color={isChecked ? colors.primary : colors.secondary}>
+          {isChecked ? "☑" : "☐"}
+        </Text>
+      </Box>
+      <Box flexDirection="column" flexGrow={1}>
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text color={isSelected ? colors.primary : undefined}>{searchQuery && item.titleIndices.length > 0 ? item.titleHighlighted : item.title}</Text>
+          <Text color={colors.secondary}>{item.created}</Text>
+        </Box>
+        <Box flexDirection="row">
+          <StatusBadge status={item.status} />
+          <Text color={colors.secondary}> {item.status}</Text>
+          <Text color={colors.secondary}> · {item.duration}</Text>
+        </Box>
+      </Box>
+    </Box>
+  );
+});
+
 export function TranscriptionList({
   params,
   navigation,
@@ -126,6 +168,9 @@ export function TranscriptionList({
   const previewCacheRef = useRef<Map<string, { title: string; summary: string; status: string }>>(new Map());
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
+
+  // Throttle ref for cursor movement to prevent flood from held keys
+  const lastMoveRef = useRef(0);
 
   useEffect(() => {
     if (!notice) return;
@@ -314,7 +359,7 @@ export function TranscriptionList({
           }
         }
       })();
-    }, 300);
+    }, 600);
 
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
@@ -353,7 +398,7 @@ export function TranscriptionList({
       ]);
     } else {
       const hints: Hint[] = [
-        { key: "↑/↓", description: "move" },
+        { key: "↑/↓/j/k", description: "move" },
         { key: "Enter", description: "view" },
         { key: "Space", description: "select" },
       ];
@@ -362,16 +407,23 @@ export function TranscriptionList({
         hints.push({ key: "E", description: "export sel." });
         hints.push({ key: "x", description: "clear sel." });
       }
+      hints.push({ key: "d", description: "delete" });
+      hints.push({ key: "o", description: "open" });
       if (totalPages > 1) {
         hints.push({ key: "n/p", description: "page" });
       }
       hints.push({ key: "/", description: "search" });
       hints.push({ key: "r", description: "refresh" });
+      hints.push({ key: "Esc", description: "back" });
       setFooterHints(hints);
     }
 
-    setFooterStatus(selectedCount > 0 ? `${selectedCount} selected` : undefined);
-  }, [confirmBatchDelete, confirmDelete, searchActive, selectedCount, setFooterHints, setFooterStatus]);
+    const statusParts: string[] = [];
+    if (selectedCount > 0) statusParts.push(`${selectedCount} selected`);
+    if (totalPages > 1) statusParts.push(`Page ${page}/${totalPages}`);
+    statusParts.push(`${total} items`);
+    setFooterStatus(statusParts.join(" · "));
+  }, [confirmBatchDelete, confirmDelete, searchActive, selectedCount, setFooterHints, setFooterStatus, totalPages, page, total]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedItem) return;
@@ -548,11 +600,17 @@ export function TranscriptionList({
     }
 
     if ((key.upArrow || lower === "k") && listItems.length > 0) {
+      const now = Date.now();
+      if (now - lastMoveRef.current < 50) return;
+      lastMoveRef.current = now;
       setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
     }
 
     if ((key.downArrow || lower === "j") && listItems.length > 0) {
+      const now = Date.now();
+      if (now - lastMoveRef.current < 50) return;
+      lastMoveRef.current = now;
       setSelectedIndex((prev) => Math.min(listItems.length - 1, prev + 1));
       return;
     }
@@ -678,30 +736,14 @@ export function TranscriptionList({
         <Box flexDirection="column">
           {visibleItems.map((item, index) => {
             const absoluteIndex = windowStart + index;
-            const isSelected = absoluteIndex === selectedIndex;
-            const isChecked = selectedIdsSet.has(item.id);
             return (
-              <Box key={item.id} flexDirection="row" marginBottom={1}>
-                <Box width={2}>
-                  <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
-                </Box>
-                <Box width={3}>
-                  <Text color={isChecked ? colors.primary : colors.secondary}>
-                    {isChecked ? "☑" : "☐"}
-                  </Text>
-                </Box>
-                <Box flexDirection="column" flexGrow={1}>
-                  <Box flexDirection="row" justifyContent="space-between">
-                    <Text color={isSelected ? colors.primary : undefined}>{searchQuery && item.titleIndices.length > 0 ? item.titleHighlighted : item.title}</Text>
-                    <Text color={colors.secondary}>{item.created}</Text>
-                  </Box>
-                  <Box flexDirection="row">
-                    <StatusBadge status={item.status} />
-                    <Text color={colors.secondary}> {item.status}</Text>
-                    <Text color={colors.secondary}> · {item.duration}</Text>
-                  </Box>
-                </Box>
-              </Box>
+              <ListRow
+                key={item.id}
+                item={item}
+                isSelected={absoluteIndex === selectedIndex}
+                isChecked={selectedIdsSet.has(item.id)}
+                searchQuery={searchQuery}
+              />
             );
           })}
         </Box>

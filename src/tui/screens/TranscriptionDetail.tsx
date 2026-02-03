@@ -389,7 +389,8 @@ export function TranscriptionDetail({
     if (activeTab === "transcript") {
       setFooterHints([
         ...common,
-        { key: "↑/↓", description: "scroll" },
+        { key: "↑/↓/j/k", description: "scroll" },
+        { key: "g/G", description: "top/bottom" },
         { key: "y", description: "copy" },
         { key: "e", description: "export" },
         { key: "o", description: "open" },
@@ -399,14 +400,15 @@ export function TranscriptionDetail({
     } else if (spikeContent !== null) {
       setFooterHints([
         ...common,
-        { key: "↑/↓", description: "scroll" },
+        { key: "↑/↓/j/k", description: "scroll" },
+        { key: "g/G", description: "top/bottom" },
         { key: "y", description: "copy" },
         { key: "Esc", description: "back to prompts" },
       ]);
     } else {
       setFooterHints([
         ...common,
-        { key: "↑/↓", description: "move" },
+        { key: "↑/↓/j/k", description: "move" },
         { key: "Enter", description: "run spike" },
         { key: "r", description: "refresh" },
         { key: "Esc", description: "back" },

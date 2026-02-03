@@ -100,8 +100,8 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
 
   useEffect(() => {
     setFooterHints([
-      { key: "↑/↓", description: "move" },
-      { key: "Enter", description: "select/toggle" },
+      { key: "↑/↓/j/k", description: "move" },
+      { key: "Enter", description: "select" },
       { key: "a", description: "add URL" },
       { key: "r", description: "refresh" },
       { key: "?", description: "help" },

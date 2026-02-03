@@ -106,11 +106,11 @@ export function Settings({ onBack }: SettingsProps): JSX.Element {
 
   useEffect(() => {
     setFooterHints([
-      { key: "↑/↓", description: "move" },
+      { key: "↑/↓/j/k", description: "move" },
       { key: "Enter", description: "edit/confirm" },
       { key: "Tab", description: "confirm" },
+      { key: "r", description: "refresh" },
       { key: "Esc", description: "back/cancel" },
-      { key: "q", description: "quit" },
     ]);
   }, [setFooterHints]);
 
