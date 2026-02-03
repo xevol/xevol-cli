@@ -25,10 +25,11 @@ const LOGO_LINES = [
   "  ██ ██ ▀█▄▄▄  ▀█▀  ▀███▀ ██",
 ];
 
-type MenuValue = "transcriptions" | "workspaces" | "settings" | "help" | "quit";
+type MenuValue = "transcriptions" | "add-url" | "workspaces" | "settings" | "help" | "quit";
 
 const MENU_ITEMS: Array<{ label: string; value: MenuValue }> = [
   { label: "📋 Transcriptions", value: "transcriptions" },
+  { label: "➕ Add URL", value: "add-url" },
   { label: "🏢 Workspaces", value: "workspaces" },
   { label: "🔧 Settings", value: "settings" },
   { label: "❓ Help", value: "help" },
@@ -143,6 +144,10 @@ export function Dashboard({ version, navigation, setFooterHints, setFooterStatus
         const item = MENU_ITEMS[selectedIndex];
         if (item.value === "transcriptions") {
           navigation.push("list");
+          return;
+        }
+        if (item.value === "add-url") {
+          navigation.push("add-url");
           return;
         }
         if (item.value === "workspaces") {
