@@ -183,7 +183,7 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
 
       const spikeResponse = (await apiFetch(`/spikes/${transcriptionId}`, {
         method: "POST",
-        body: { promptId: "default", outputLang: "en" },
+        body: { promptId: "formatted", outputLang: "en" },
         token,
         apiUrl,
       })) as Record<string, unknown>;

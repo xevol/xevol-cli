@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink";
 import { promises as fs } from "fs";
 import path from "path";
 import { useApi } from "../hooks/useApi";
+import { apiFetch } from "../../lib/api";
 import { Spinner } from "../components/Spinner";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors } from "../theme";
@@ -33,6 +34,15 @@ type TabName = "transcript" | "spikes";
 
 type RawItem = Record<string, unknown>;
 
+interface Prompt {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+/** Prompts to pin at the top of the list (most commonly used). */
+const FEATURED_PROMPT_IDS = ["formatted", "summary", "wisdom", "insights", "facts"];
+
 function unwrapAnalysis(data: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!data) return null;
   if (data.analysis && typeof data.analysis === "object") {
@@ -51,57 +61,68 @@ function formatCreatedAt(raw?: string): string {
   return date.toLocaleString();
 }
 
-function normalizeSpikes(data: Record<string, unknown>): RawItem[] {
-  return (
-    (data.spikes as RawItem[] | undefined) ??
-    (data.data as RawItem[] | undefined) ??
-    (data.items as RawItem[] | undefined) ??
-    []
-  );
+/** Sort prompts: featured first (in FEATURED order), then the rest alphabetically. */
+function sortPrompts(prompts: Prompt[]): Prompt[] {
+  const featured: Prompt[] = [];
+  const rest: Prompt[] = [];
+  for (const id of FEATURED_PROMPT_IDS) {
+    const p = prompts.find((pr) => pr.id === id);
+    if (p) featured.push(p);
+  }
+  for (const p of prompts) {
+    if (!FEATURED_PROMPT_IDS.includes(p.id)) rest.push(p);
+  }
+  rest.sort((a, b) => a.name.localeCompare(b.name));
+  return [...featured, ...rest];
 }
 
-function getSpikeContent(item: RawItem): string {
-  return (
-    (item.markdown as string | undefined) ??
-    (item.content as string | undefined) ??
-    (item.text as string | undefined) ??
-    (item.body as string | undefined) ??
-    ""
-  );
-}
+/**
+ * Extract content from SSE events for spike streaming.
+ * API sends: {type:"token",content:"..."}, {type:"full",content:"..."}, {type:"done"}, {type:"error",error:"..."}
+ */
+function extractSpikeChunk(event: SSEEvent): { action: "append" | "replace" | "done" | "error"; content: string } | null {
+  // Handle JSON event stream from the spike API
+  try {
+    const parsed = JSON.parse(event.data) as { type?: string; content?: string; error?: string };
+    if (parsed.type === "token") {
+      return { action: "append", content: parsed.content ?? "" };
+    }
+    if (parsed.type === "full") {
+      return { action: "replace", content: parsed.content ?? "" };
+    }
+    if (parsed.type === "done") {
+      return { action: "done", content: "" };
+    }
+    if (parsed.type === "error") {
+      return { action: "error", content: parsed.error ?? "Unknown stream error" };
+    }
+  } catch {
+    // Not JSON — fall through
+  }
 
-function extractChunk(event: SSEEvent): string | null {
+  // Fallback: streamSSE may yield a synthetic "complete" event for JSON responses
   if (event.event === "complete") {
     try {
-      const parsed = JSON.parse(event.data) as {
-        status?: string;
-        data?: string;
-        content?: string;
-        markdown?: string;
-      };
-      return parsed.data ?? parsed.content ?? parsed.markdown ?? "";
+      const parsed = JSON.parse(event.data) as { content?: string; data?: string; markdown?: string };
+      return { action: "replace", content: parsed.content ?? parsed.data ?? parsed.markdown ?? event.data };
     } catch {
-      return event.data;
+      return { action: "replace", content: event.data };
     }
   }
 
+  // Fallback for chunk/delta events
   if (event.event === "chunk" || event.event === "delta" || !event.event) {
     try {
       const parsed = JSON.parse(event.data) as { text?: string; content?: string; chunk?: string; delta?: string };
-      return parsed.text ?? parsed.content ?? parsed.chunk ?? parsed.delta ?? event.data;
+      const text = parsed.text ?? parsed.content ?? parsed.chunk ?? parsed.delta ?? event.data;
+      return { action: "append", content: text };
     } catch {
-      return event.data;
+      return { action: "append", content: event.data };
     }
   }
 
   if (event.event === "done" || event.event === "end") {
-    if (!event.data || event.data === "[DONE]") return null;
-    try {
-      const parsed = JSON.parse(event.data) as { content?: string; text?: string };
-      return parsed.content ?? parsed.text ?? null;
-    } catch {
-      return null;
-    }
+    return { action: "done", content: "" };
   }
 
   return null;
@@ -119,12 +140,13 @@ export function TranscriptionDetail({
   const [notice, setNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  // Spike list state
-  const [spikeSelectedIndex, setSpikeSelectedIndex] = useState(0);
-  const [activeSpike, setActiveSpike] = useState<RawItem | null>(null);
-  const [streamContent, setStreamContent] = useState("");
+  // Spikes tab state — prompt list + spike viewing
+  const [promptSelectedIndex, setPromptSelectedIndex] = useState(0);
+  const [spikeContent, setSpikeContent] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [creatingSpike, setCreatingSpike] = useState(false);
+  const [activePromptName, setActivePromptName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!notice) return;
@@ -135,25 +157,30 @@ export function TranscriptionDetail({
   const { data, loading, error, refresh } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
   const analysis = useMemo(() => unwrapAnalysis(data), [data]);
 
-  // Fetch spikes for this transcription
+  // Fetch available prompts
   const {
-    data: spikesData,
-    loading: spikesLoading,
-    error: spikesError,
-    refresh: refreshSpikes,
-  } = useApi<Record<string, unknown>>(
-    "/spikes",
-    { query: { transcriptionId: id } },
-    [id],
-  );
+    data: promptsData,
+    loading: promptsLoading,
+    error: promptsError,
+    refresh: refreshPrompts,
+  } = useApi<Record<string, unknown>>("/v1/prompts", {}, []);
 
-  const spikes = useMemo(() => normalizeSpikes(spikesData ?? {}), [spikesData]);
+  const prompts = useMemo(() => {
+    const raw = (promptsData as any)?.prompts ?? (promptsData as any)?.data ?? [];
+    return sortPrompts(
+      (raw as any[]).map((p: any) => ({
+        id: p.id ?? p.slug ?? "",
+        name: p.name ?? p.title ?? p.id ?? "",
+        description: p.description ?? "",
+      })),
+    );
+  }, [promptsData]);
 
   useEffect(() => {
-    if (spikeSelectedIndex >= spikes.length) {
-      setSpikeSelectedIndex(Math.max(0, spikes.length - 1));
+    if (promptSelectedIndex >= prompts.length && prompts.length > 0) {
+      setPromptSelectedIndex(Math.max(0, prompts.length - 1));
     }
-  }, [spikeSelectedIndex, spikes.length]);
+  }, [promptSelectedIndex, prompts.length]);
 
   const title = pickValue(analysis ?? {}, ["title", "videoTitle", "name"]) ?? "Untitled";
   const channel = pickValue(analysis ?? {}, ["channel", "channelTitle", "author"]) ?? "Unknown";
@@ -177,8 +204,6 @@ export function TranscriptionDetail({
     [transcript, contentWidth],
   );
 
-  // Spike content for active spike
-  const spikeContent = activeSpike ? (streamContent || getSpikeContent(activeSpike)) : "";
   const spikeContentLines = useMemo(
     () => wrapText(spikeContent || "No spike content available.", contentWidth),
     [spikeContent, contentWidth],
@@ -190,7 +215,7 @@ export function TranscriptionDetail({
   const currentContentLines =
     activeTab === "transcript"
       ? transcriptLines
-      : activeSpike
+      : spikeContent !== null
         ? spikeContentLines
         : [];
 
@@ -205,98 +230,101 @@ export function TranscriptionDetail({
     setScrollOffset(0);
   }, [activeTab]);
 
-  // Stream spike content
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
+  // Create spike and stream content
+  const createAndStreamSpike = useCallback(async (prompt: Prompt) => {
+    setActivePromptName(prompt.name);
+    setSpikeContent("");
+    setStreamError(null);
+    setCreatingSpike(true);
+    setScrollOffset(0);
 
-    const runStream = async () => {
-      if (!activeSpike) {
-        setStreamContent("");
-        setStreaming(false);
-        setStreamError(null);
+    const config = (await readConfig()) ?? {};
+    const { token, expired } = resolveToken(config);
+    if (!token) {
+      setStreamError(
+        expired
+          ? "Token expired. Run `xevol login` to re-authenticate."
+          : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+      );
+      setCreatingSpike(false);
+      return;
+    }
+
+    const apiUrl = resolveApiUrl(config);
+
+    try {
+      // POST to create the spike
+      const response = await apiFetch<Record<string, unknown>>(`/spikes/${id}`, {
+        method: "POST",
+        body: { promptId: prompt.id, outputLang: "en" },
+        token,
+        apiUrl,
+      });
+
+      setCreatingSpike(false);
+
+      // Check for cached content
+      const cachedContent = (response.content as string | undefined) ?? (response.markdown as string | undefined);
+      if (cachedContent) {
+        setSpikeContent(cachedContent);
         return;
       }
 
-      const statusRaw = pickValue(activeSpike, ["status", "state"]);
-      const spikeStatus = statusRaw ? String(statusRaw).toLowerCase() : "";
-      const spikeId = pickValue(activeSpike, ["id", "spikeId"])?.toString();
-      const existingContent = getSpikeContent(activeSpike);
-
-      setStreamContent(existingContent);
-      setStreamError(null);
-
-      if (!spikeId) return;
-      if (spikeStatus !== "pending" && spikeStatus !== "processing") return;
-
-      const config = (await readConfig()) ?? {};
-      const { token, expired } = resolveToken(config);
-      if (!token) {
-        setStreamError(
-          expired
-            ? "Token expired. Run `xevol login` to re-authenticate."
-            : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
-        );
+      // Need to stream
+      const spikeId = (response.spikeId as string | undefined) ?? (response.id as string | undefined);
+      if (!spikeId) {
+        setStreamError("No spikeId returned from API");
         return;
       }
 
-      const apiUrl = resolveApiUrl(config);
       setStreaming(true);
+      let fullContent = "";
 
-      let fullContent = existingContent ?? "";
+      const controller = new AbortController();
+      // Store controller so cleanup can abort
+      streamControllerRef.current = controller;
+
       try {
-        const streamPaths = [`/stream/spikes/${spikeId}`, `/spikes/stream/${spikeId}`];
-        let streamed = false;
-        let lastError: Error | null = null;
+        for await (const event of streamSSE(`/spikes/stream/${spikeId}`, {
+          token,
+          apiUrl,
+          signal: controller.signal,
+        })) {
+          const result = extractSpikeChunk(event);
+          if (!result) continue;
 
-        for (const spath of streamPaths) {
-          try {
-            for await (const event of streamSSE(spath, {
-              token,
-              apiUrl,
-              signal: controller.signal,
-            })) {
-              if (!active) return;
-              if (event.event === "error") {
-                setStreamError(`Stream error: ${event.data}`);
-                continue;
-              }
-              const chunk = extractChunk(event);
-              if (chunk) {
-                fullContent += chunk;
-                setStreamContent(fullContent);
-              }
-            }
-            streamed = true;
-            lastError = null;
+          if (result.action === "append") {
+            fullContent += result.content;
+            setSpikeContent(fullContent);
+          } else if (result.action === "replace") {
+            fullContent = result.content;
+            setSpikeContent(fullContent);
+          } else if (result.action === "error") {
+            setStreamError(result.content);
             break;
-          } catch (err) {
-            lastError = err as Error;
-            if (controller.signal.aborted) return;
+          } else if (result.action === "done") {
+            break;
           }
         }
-
-        if (!streamed && lastError) {
-          throw lastError;
-        }
-      } catch (err) {
-        if (active) {
-          setStreamError((err as Error).message);
-        }
       } finally {
-        if (active) {
-          setStreaming(false);
-        }
+        setStreaming(false);
+        streamControllerRef.current = null;
       }
-    };
+    } catch (err) {
+      setCreatingSpike(false);
+      setStreaming(false);
+      setStreamError((err as Error).message);
+    }
+  }, [id]);
 
-    void runStream();
+  const streamControllerRef = React.useRef<AbortController | null>(null);
 
+  // Cleanup stream on unmount
+  useEffect(() => {
     return () => {
-      active = false;
-      controller.abort();
+      streamControllerRef.current?.abort();
     };
-  }, [activeSpike]);
+  }, []);
 
   // Auto-scroll when streaming
   useEffect(() => {
@@ -320,22 +348,22 @@ export function TranscriptionDetail({
         { key: "r", description: "refresh" },
         { key: "Esc", description: "back" },
       ]);
-    } else if (activeSpike) {
+    } else if (spikeContent !== null) {
       setFooterHints([
         ...common,
         { key: "↑/↓", description: "scroll" },
-        { key: "Esc", description: "back to list" },
+        { key: "Esc", description: "back to prompts" },
       ]);
     } else {
       setFooterHints([
         ...common,
         { key: "↑/↓", description: "move" },
-        { key: "Enter", description: "view spike" },
+        { key: "Enter", description: "run spike" },
         { key: "r", description: "refresh" },
         { key: "Esc", description: "back" },
       ]);
     }
-  }, [setFooterHints, activeTab, activeSpike]);
+  }, [setFooterHints, activeTab, spikeContent]);
 
   const handleExport = useCallback(async () => {
     if (!analysis) {
@@ -376,24 +404,31 @@ export function TranscriptionDetail({
     // Tab switching
     if (key.tab) {
       setActiveTab((prev) => (prev === "transcript" ? "spikes" : "transcript"));
-      setActiveSpike(null);
+      setSpikeContent(null);
+      setActivePromptName(null);
       return;
     }
     if (input === "1") {
       setActiveTab("transcript");
-      setActiveSpike(null);
+      setSpikeContent(null);
+      setActivePromptName(null);
       return;
     }
     if (input === "2") {
       setActiveTab("spikes");
-      setActiveSpike(null);
+      setSpikeContent(null);
+      setActivePromptName(null);
       return;
     }
 
     // Escape / back
     if (key.escape || key.backspace) {
-      if (activeTab === "spikes" && activeSpike) {
-        setActiveSpike(null);
+      if (activeTab === "spikes" && spikeContent !== null) {
+        streamControllerRef.current?.abort();
+        setSpikeContent(null);
+        setActivePromptName(null);
+        setStreaming(false);
+        setStreamError(null);
         setScrollOffset(0);
         return;
       }
@@ -402,11 +437,8 @@ export function TranscriptionDetail({
     }
 
     if (lower === "r") {
-      if (activeTab === "spikes" && activeSpike) {
-        setStreamError(null);
-        setActiveSpike({ ...activeSpike });
-      } else if (activeTab === "spikes") {
-        void refreshSpikes();
+      if (activeTab === "spikes") {
+        void refreshPrompts();
       } else {
         void refresh();
       }
@@ -435,8 +467,8 @@ export function TranscriptionDetail({
 
     // Spikes tab controls
     if (activeTab === "spikes") {
-      if (activeSpike) {
-        // Viewing a spike's content
+      if (spikeContent !== null) {
+        // Viewing spike content — scroll only
         if (key.upArrow || lower === "k") {
           setScrollOffset((prev) => Math.max(0, prev - 1));
           return;
@@ -446,18 +478,17 @@ export function TranscriptionDetail({
           return;
         }
       } else {
-        // Spike list navigation
+        // Prompt list navigation
         if (key.upArrow || lower === "k") {
-          setSpikeSelectedIndex((prev) => Math.max(0, prev - 1));
+          setPromptSelectedIndex((prev) => Math.max(0, prev - 1));
           return;
         }
         if (key.downArrow || lower === "j") {
-          setSpikeSelectedIndex((prev) => Math.min(spikes.length - 1, prev + 1));
+          setPromptSelectedIndex((prev) => Math.min(prompts.length - 1, prev + 1));
           return;
         }
-        if (key.return && spikes[spikeSelectedIndex]) {
-          setActiveSpike(spikes[spikeSelectedIndex]);
-          setScrollOffset(0);
+        if (key.return && prompts[promptSelectedIndex] && !creatingSpike && !streaming) {
+          void createAndStreamSpike(prompts[promptSelectedIndex]);
           return;
         }
       }
@@ -521,33 +552,35 @@ export function TranscriptionDetail({
             </Box>
           )}
 
-          {activeTab === "spikes" && !activeSpike && (
+          {activeTab === "spikes" && spikeContent === null && (
             <Box flexDirection="column">
-              {spikesLoading && <Spinner label="Fetching spikes…" />}
-              {spikesError && (
-                <Text color={colors.error}>{spikesError} (press r to retry)</Text>
+              {promptsLoading && <Spinner label="Fetching prompts…" />}
+              {promptsError && (
+                <Text color={colors.error}>{promptsError} (press r to retry)</Text>
               )}
-              {!spikesLoading && !spikesError && spikes.length === 0 && (
-                <Text color={colors.secondary}>No spikes found.</Text>
+              {!promptsLoading && !promptsError && prompts.length === 0 && (
+                <Text color={colors.secondary}>No prompts available.</Text>
               )}
-              {!spikesLoading &&
-                !spikesError &&
-                spikes.map((item, index) => {
-                  const isSelected = index === spikeSelectedIndex;
-                  const promptName = pickValue(item, ["promptName", "promptId", "prompt"]) ?? "Spike";
-                  const spikeStatus = pickValue(item, ["status", "state"]) ?? "—";
+              {!promptsLoading &&
+                !promptsError &&
+                prompts.map((prompt, index) => {
+                  const isSelected = index === promptSelectedIndex;
+                  const isFeatured = FEATURED_PROMPT_IDS.includes(prompt.id);
 
                   return (
-                    <Box key={pickValue(item, ["id", "spikeId"]) ?? `${promptName}-${index}`}>
+                    <Box key={prompt.id}>
                       <Box width={2}>
                         <Text color={isSelected ? colors.primary : colors.secondary}>
                           {isSelected ? "›" : " "}
                         </Text>
                       </Box>
                       <Box flexDirection="row">
-                        <StatusBadge status={spikeStatus} />
-                        <Text color={isSelected ? colors.primary : undefined}> {promptName}</Text>
-                        <Text color={colors.secondary}> ({spikeStatus})</Text>
+                        <Text color={isSelected ? colors.primary : undefined}>
+                          {isFeatured ? "★ " : "  "}{prompt.name}
+                        </Text>
+                        {prompt.description && (
+                          <Text color={colors.secondary}> — {prompt.description}</Text>
+                        )}
                       </Box>
                     </Box>
                   );
@@ -555,11 +588,16 @@ export function TranscriptionDetail({
             </Box>
           )}
 
-          {activeTab === "spikes" && activeSpike && (
+          {activeTab === "spikes" && spikeContent !== null && (
             <Box flexDirection="column">
               <Text color={colors.primary}>
-                Spike: {pickValue(activeSpike, ["promptName", "promptId", "prompt"]) ?? "Spike"}
+                {activePromptName ?? "Spike"}
               </Text>
+              {creatingSpike && (
+                <Box marginTop={1}>
+                  <Spinner label="Creating spike…" />
+                </Box>
+              )}
               {streaming && (
                 <Box marginTop={1}>
                   <Text color={colors.secondary}>streaming…</Text>
@@ -567,7 +605,7 @@ export function TranscriptionDetail({
               )}
               {streamError && (
                 <Box marginTop={1}>
-                  <Text color={colors.error}>{streamError} (press r to retry)</Text>
+                  <Text color={colors.error}>{streamError}</Text>
                 </Box>
               )}
               <Box marginTop={1}>

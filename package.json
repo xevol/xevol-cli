@@ -1,6 +1,6 @@
 {
   "name": "xevol",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Xevol is a tool to consume, remix, make, publish, and offer systems, products, and workflows.",
   "type": "module",
   "bin": {
