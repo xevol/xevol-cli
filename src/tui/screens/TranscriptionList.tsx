@@ -801,10 +801,12 @@ export function TranscriptionList({
   const previewHeight = terminal.rows - 4;
   const previewPanel = (
     <Box flexDirection="column" paddingX={1} paddingY={1} height={previewHeight} overflow="hidden">
-      {previewLoading && <Spinner label="Loading preview…" />}
-      {!previewLoading && previewData && (
+      {previewData ? (
         <Box flexDirection="column">
-          <Text bold color={colors.primary}>{previewData.title}</Text>
+          <Box flexDirection="row">
+            <Text bold color={previewLoading ? colors.secondary : colors.primary}>{previewData.title}</Text>
+            {previewLoading && <Text color={colors.secondary}> …</Text>}
+          </Box>
           <Box marginTop={1} flexDirection="row">
             <StatusBadge status={previewData.status} />
             <Text color={colors.secondary}> {previewData.status}</Text>
@@ -815,8 +817,9 @@ export function TranscriptionList({
             </Box>
           ) : null}
         </Box>
-      )}
-      {!previewLoading && !previewData && (
+      ) : previewLoading ? (
+        <Spinner label="Loading preview…" />
+      ) : (
         <Text color={colors.secondary}>Select a transcription to preview</Text>
       )}
     </Box>
