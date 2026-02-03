@@ -33,7 +33,7 @@ export function useApi<T>(
     };
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     const key = cacheKey(path, optionsRef.current.query as Record<string, unknown> | undefined);
     const ttl = inferTTL(path);
 
@@ -72,6 +72,7 @@ export function useApi<T>(
         ...optionsRef.current,
         token,
         apiUrl,
+        signal,
       });
       if (mountedRef.current) {
         setData(response);
@@ -79,6 +80,8 @@ export function useApi<T>(
       // Update cache with fresh data
       void setCache(key, response, ttl);
     } catch (err) {
+      // Don't treat abort as an error
+      if ((err as Error).name === "AbortError") return;
       if (mountedRef.current) {
         // Only show error if we have no cached data to fall back on
         if (!cached) {
@@ -93,8 +96,16 @@ export function useApi<T>(
   }, [path]);
 
   useEffect(() => {
-    void fetchData();
+    const controller = new AbortController();
+    void fetchData(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [fetchData, ...deps]);
 
-  return { data, loading, error, refresh: fetchData };
+  const refresh = useCallback(async () => {
+    await fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refresh };
 }

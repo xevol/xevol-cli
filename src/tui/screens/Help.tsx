@@ -1,11 +1,10 @@
 import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import { colors } from "../theme";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
 
 interface HelpProps {
   onClose: () => void;
-  setFooterHints: (hints: Hint[]) => void;
 }
 
 const KEYBINDINGS: Array<{ key: string; action: string; section?: string }> = [
@@ -36,7 +35,8 @@ const KEYBINDINGS: Array<{ key: string; action: string; section?: string }> = [
   { key: "q", action: "Quit" },
 ];
 
-export function Help({ onClose, setFooterHints }: HelpProps): JSX.Element {
+export function Help({ onClose }: HelpProps): JSX.Element {
+  const { setFooterHints } = useLayout();
   useEffect(() => {
     setFooterHints([
       { key: "Esc", description: "close" },

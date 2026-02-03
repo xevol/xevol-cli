@@ -5,11 +5,11 @@ import { useApi } from "../hooks/useApi";
 import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
 import { DEFAULT_API_URL, readConfig, writeConfig, type XevolConfig } from "../../lib/config";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
+import { useInputLock } from "../context/InputContext";
 
 interface SettingsProps {
   onBack: () => void;
-  setFooterHints: (hints: Hint[]) => void;
 }
 
 type SettingKey = "apiUrl" | "default.lang" | "default.limit" | "workspaceId";
@@ -45,13 +45,21 @@ function buildUsageLines(data: Record<string, unknown>): string[] {
   return lines;
 }
 
-export function Settings({ onBack, setFooterHints }: SettingsProps): JSX.Element {
+export function Settings({ onBack }: SettingsProps): JSX.Element {
+  const { setFooterHints } = useLayout();
+  const { setInputActive } = useInputLock();
   const [config, setConfig] = useState<XevolConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [editingKey, setEditingKey] = useState<SettingKey | null>(null);
+  const [editingKeyRaw, setEditingKeyRaw] = useState<SettingKey | null>(null);
+  // Sync input lock with editing state
+  const editingKey = editingKeyRaw;
+  const setEditingKey = (key: SettingKey | null) => {
+    setEditingKeyRaw(key);
+    setInputActive(key !== null);
+  };
   const [editValue, setEditValue] = useState("");
 
   const {

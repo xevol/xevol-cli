@@ -11,7 +11,8 @@ import { extractId, extractStatus, pickValue } from "../../lib/utils";
 import { wrapText } from "../utils/wrapText";
 import { renderMarkdownLines } from "../utils/renderMarkdown";
 import { copyToClipboard } from "../utils/clipboard";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
+import { useInputLock } from "../context/InputContext";
 
 interface TerminalSize {
   columns: number;
@@ -21,7 +22,6 @@ interface TerminalSize {
 interface AddUrlProps {
   onBack: () => void;
   terminal: TerminalSize;
-  setFooterHints: (hints: Hint[]) => void;
 }
 
 type Phase = "input" | "submitting" | "processing" | "creating-spike" | "streaming" | "done" | "error";
@@ -75,7 +75,9 @@ const PHASE_LABELS: Record<string, string> = {
   done: "Done",
 };
 
-export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.Element {
+export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
+  const { setFooterHints } = useLayout();
+  const { setInputActive } = useInputLock();
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("input");
   const [statusText, setStatusText] = useState("");
@@ -149,6 +151,12 @@ export function AddUrl({ onBack, terminal, setFooterHints }: AddUrlProps): JSX.E
       }
     };
   }, [phase]);
+
+  // Lock global input when in text input phase
+  useEffect(() => {
+    setInputActive(phase === "input");
+    return () => setInputActive(false);
+  }, [phase, setInputActive]);
 
   // Update footer hints based on phase
   useEffect(() => {

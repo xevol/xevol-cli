@@ -7,7 +7,7 @@ import { pickValueOrDash } from "../../lib/utils";
 import { formatTimeAgo } from "../utils/time";
 import { getHistory, type HistoryEntry } from "../../lib/history";
 import type { NavigationState } from "../hooks/useNavigation";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
 
 // Module-level cache so navigating away and back doesn't re-fetch
 let _cachedRecent: Record<string, unknown> | null = null;
@@ -16,8 +16,6 @@ let _cachedHistory: HistoryEntry[] | null = null;
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
-  setFooterHints: (hints: Hint[]) => void;
-  setFooterStatus: (status?: string) => void;
 }
 
 const LOGO_LINES = [
@@ -57,8 +55,9 @@ function normalizeRecent(data: Record<string, unknown>): RawItem[] {
   );
 }
 
-export function Dashboard({ version, navigation, setFooterHints, setFooterStatus }: DashboardProps): JSX.Element {
+export function Dashboard({ version, navigation }: DashboardProps): JSX.Element {
   const { exit } = useApp();
+  const { setFooterHints, setFooterStatus } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Local history — instant, no API call

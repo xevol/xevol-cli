@@ -11,6 +11,8 @@ export interface ApiRequestOptions {
   token?: string;
   /** Override the base API URL (defaults to config or XEVOL_API_URL) */
   apiUrl?: string;
+  /** Optional AbortSignal for cancellation (combined with 30s timeout) */
+  signal?: AbortSignal;
 }
 
 /**
@@ -78,7 +80,7 @@ async function parseErrorBody(response: Response): Promise<string | null> {
  */
 export async function apiFetch<T = unknown>(
   path: string,
-  { method, query, body, headers, token, apiUrl }: ApiRequestOptions = {},
+  { method, query, body, headers, token, apiUrl, signal }: ApiRequestOptions = {},
 ): Promise<T> {
   const config = await readConfig();
   const url = buildRequestUrl(path, query, apiUrl);
@@ -97,6 +99,10 @@ export async function apiFetch<T = unknown>(
     requestHeaders.set("Content-Type", "application/json");
   }
 
+  // Combine user-provided signal with a 30s timeout signal
+  const timeoutSignal = AbortSignal.timeout(30000);
+  const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -104,7 +110,7 @@ export async function apiFetch<T = unknown>(
       method: method ?? (body === undefined ? "GET" : "POST"),
       headers: requestHeaders,
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
+      signal: combinedSignal,
     });
   } catch (error) {
     if ((error as Error).name === "TimeoutError") {

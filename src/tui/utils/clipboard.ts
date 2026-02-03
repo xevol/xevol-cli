@@ -49,7 +49,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 
   return new Promise((resolve) => {
     const cmd = [tool.cmd, ...tool.args].join(" ");
-    const child = exec(cmd, { timeout: 5000 }, (error) => {
+    const child = exec(cmd, { timeout: 500 }, (error) => {
       resolve(!error);
     });
 

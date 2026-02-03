@@ -18,7 +18,7 @@ import { addToHistory } from "../../lib/history";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
 import { copyToClipboard } from "../utils/clipboard";
 import type { NavigationState } from "../hooks/useNavigation";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
 
 interface TerminalSize {
   columns: number;
@@ -30,7 +30,6 @@ interface TranscriptionDetailProps {
   navigation: Pick<NavigationState, "push">;
   onBack: () => void;
   terminal: TerminalSize;
-  setFooterHints: (hints: Hint[]) => void;
 }
 
 type TabName = "transcript" | "spikes";
@@ -152,8 +151,8 @@ export function TranscriptionDetail({
   navigation,
   onBack,
   terminal,
-  setFooterHints,
 }: TranscriptionDetailProps): JSX.Element {
+  const { setFooterHints } = useLayout();
   const [activeTab, setActiveTab] = useState<TabName>("transcript");
   const [scrollOffset, setScrollOffset] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);

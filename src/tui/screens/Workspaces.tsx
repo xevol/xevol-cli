@@ -4,11 +4,10 @@ import { useApi } from "../hooks/useApi";
 import { Spinner } from "../components/Spinner";
 import { colors } from "../theme";
 import { readConfig, updateConfig } from "../../lib/config";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
 
 interface WorkspacesProps {
   onBack: () => void;
-  setFooterHints: (hints: Hint[]) => void;
 }
 
 type RawItem = Record<string, unknown>;
@@ -64,7 +63,8 @@ interface WorkspaceEntry {
   role: string;
 }
 
-export function Workspaces({ onBack, setFooterHints }: WorkspacesProps): JSX.Element {
+export function Workspaces({ onBack }: WorkspacesProps): JSX.Element {
+  const { setFooterHints } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeId, setActiveId] = useState<string | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);

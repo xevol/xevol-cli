@@ -9,7 +9,7 @@ import { wrapText } from "../utils/wrapText";
 import { renderMarkdownLines } from "../utils/renderMarkdown";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { streamSSE, type SSEEvent } from "../../lib/sse";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
 
 interface TerminalSize {
   columns: number;
@@ -20,7 +20,6 @@ interface SpikeViewerProps {
   id: string;
   onBack: () => void;
   terminal: TerminalSize;
-  setFooterHints: (hints: Hint[]) => void;
 }
 
 type RawItem = Record<string, unknown>;
@@ -81,7 +80,8 @@ function extractChunk(event: SSEEvent): string | null {
   return null;
 }
 
-export function SpikeViewer({ id, onBack, terminal, setFooterHints }: SpikeViewerProps): JSX.Element {
+export function SpikeViewer({ id, onBack, terminal }: SpikeViewerProps): JSX.Element {
+  const { setFooterHints } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeSpike, setActiveSpike] = useState<RawItem | null>(null);
   const [scrollOffset, setScrollOffset] = useState(0);

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, render, useApp, useInput, useStdout } from "ink";
 import { Header } from "./components/Header";
-import { Footer, type Hint } from "./components/Footer";
+import { Footer } from "./components/Footer";
 import { StatsBar } from "./components/StatsBar";
 import { useNavigation } from "./hooks/useNavigation";
 import { TranscriptionList } from "./screens/TranscriptionList";
@@ -12,6 +12,8 @@ import { SpikeViewer } from "./screens/SpikeViewer";
 import { Workspaces } from "./screens/Workspaces";
 import { Settings } from "./screens/Settings";
 import { AddUrl } from "./screens/AddUrl";
+import { InputProvider, useInputLock } from "./context/InputContext";
+import { LayoutProvider, useLayout } from "./context/LayoutContext";
 import { apiFetch } from "../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { checkForUpdate } from "../lib/update-check";
@@ -20,12 +22,12 @@ interface AppProps {
   version: string;
 }
 
-export function App({ version }: AppProps): JSX.Element {
+function AppInner({ version }: AppProps): JSX.Element {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { currentScreen, params, push, pop, reset } = useNavigation("dashboard");
-  const [footerHints, setFooterHints] = useState<Hint[]>([]);
-  const [footerStatus, setFooterStatus] = useState<string | undefined>(undefined);
+  const { footerHints, footerStatus, setFooterHints, setFooterStatus } = useLayout();
+  const { isInputActive } = useInputLock();
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [userPlan, setUserPlan] = useState<string | undefined>(undefined);
   const [statsTotal, setStatsTotal] = useState<number | undefined>(undefined);
@@ -76,8 +78,8 @@ export function App({ version }: AppProps): JSX.Element {
   }, [currentScreen]);
 
   useInput((input) => {
-    // Don't intercept keys when text input screens are active
-    if (currentScreen === "add-url") return;
+    // Don't intercept keys when any text input is active
+    if (isInputActive) return;
 
     if (input === "q") {
       exit();
@@ -126,12 +128,10 @@ export function App({ version }: AppProps): JSX.Element {
       <Dashboard
         version={version}
         navigation={navigation}
-        setFooterHints={setFooterHints}
-        setFooterStatus={setFooterStatus}
       />
     );
   } else if (currentScreen === "help") {
-    content = <Help onClose={pop} setFooterHints={setFooterHints} />;
+    content = <Help onClose={pop} />;
   } else if (currentScreen === "detail") {
     content = (
       <TranscriptionDetail
@@ -139,7 +139,6 @@ export function App({ version }: AppProps): JSX.Element {
         navigation={navigation}
         onBack={pop}
         terminal={terminal}
-        setFooterHints={setFooterHints}
       />
     );
   } else if (currentScreen === "spike-viewer") {
@@ -148,19 +147,17 @@ export function App({ version }: AppProps): JSX.Element {
         id={detailId}
         onBack={pop}
         terminal={terminal}
-        setFooterHints={setFooterHints}
       />
     );
   } else if (currentScreen === "workspaces") {
-    content = <Workspaces onBack={pop} setFooterHints={setFooterHints} />;
+    content = <Workspaces onBack={pop} />;
   } else if (currentScreen === "settings") {
-    content = <Settings onBack={pop} setFooterHints={setFooterHints} />;
+    content = <Settings onBack={pop} />;
   } else if (currentScreen === "add-url") {
     content = (
       <AddUrl
         onBack={pop}
         terminal={terminal}
-        setFooterHints={setFooterHints}
       />
     );
   } else {
@@ -170,8 +167,6 @@ export function App({ version }: AppProps): JSX.Element {
         navigation={navigation}
         onBack={pop}
         terminal={terminal}
-        setFooterHints={setFooterHints}
-        setFooterStatus={setFooterStatus}
       />
     );
   }
@@ -194,6 +189,16 @@ export function App({ version }: AppProps): JSX.Element {
         </Box>
       )}
     </Box>
+  );
+}
+
+export function App({ version }: AppProps): JSX.Element {
+  return (
+    <InputProvider>
+      <LayoutProvider>
+        <AppInner version={version} />
+      </LayoutProvider>
+    </InputProvider>
   );
 }
 

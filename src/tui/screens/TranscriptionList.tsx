@@ -19,7 +19,8 @@ import { formatTimeAgo } from "../utils/time";
 import { renderMarkdownLines } from "../utils/renderMarkdown";
 import { SplitLayout } from "../components/SplitLayout";
 import type { NavigationState } from "../hooks/useNavigation";
-import type { Hint } from "../components/Footer";
+import { useLayout } from "../context/LayoutContext";
+import { useInputLock } from "../context/InputContext";
 
 interface ListParams {
   status?: string;
@@ -36,8 +37,6 @@ interface TranscriptionListProps {
   navigation: Pick<NavigationState, "push">;
   onBack: () => void;
   terminal: TerminalSize;
-  setFooterHints: (hints: Hint[]) => void;
-  setFooterStatus: (status?: string) => void;
 }
 
 type RawItem = Record<string, unknown>;
@@ -92,9 +91,9 @@ export function TranscriptionList({
   navigation,
   onBack,
   terminal,
-  setFooterHints,
-  setFooterStatus,
 }: TranscriptionListProps): JSX.Element {
+  const { setFooterHints, setFooterStatus } = useLayout();
+  const { setInputActive } = useInputLock();
   const [status] = useState<string | undefined>(params?.status);
   const [sort] = useState<string | undefined>(params?.sort);
   const [searchActive, setSearchActive] = useState(false);
@@ -108,6 +107,7 @@ export function TranscriptionList({
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [isBatchExporting, setIsBatchExporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
 
   // Preview panel state for wide mode
   const [previewData, setPreviewData] = useState<{ title: string; summary: string; status: string } | null>(null);
@@ -165,6 +165,12 @@ export function TranscriptionList({
 
   // Auto-refresh removed — users can press `r` to refresh
 
+  // Lock global input when search is active
+  useEffect(() => {
+    setInputActive(searchActive);
+    return () => setInputActive(false);
+  }, [searchActive, setInputActive]);
+
   useEffect(() => {
     if (!searchActive) return;
     const timer = setTimeout(() => {
@@ -206,10 +212,15 @@ export function TranscriptionList({
       };
     });
 
-    // Client-side fuzzy filtering when search is active
-    if (!searchQuery) return items.map((item) => ({ ...item, titleHighlighted: item.title, fuzzyScore: 0, titleIndices: [] as number[] }));
+    // Filter out optimistically deleted items
+    const filteredItems = deletedIds.length > 0
+      ? items.filter((item) => !deletedIds.includes(item.id))
+      : items;
 
-    return items
+    // Client-side fuzzy filtering when search is active
+    if (!searchQuery) return filteredItems.map((item) => ({ ...item, titleHighlighted: item.title, fuzzyScore: 0, titleIndices: [] as number[] }));
+
+    return filteredItems
       .map((item) => {
         const titleResult = fuzzyMatch(searchQuery, item.title);
         const channelResult = fuzzyMatch(searchQuery, item.channel);
@@ -225,7 +236,7 @@ export function TranscriptionList({
       })
       .filter((item) => item.matched)
       .sort((a, b) => b.fuzzyScore - a.fuzzyScore);
-  }, [normalized.items, searchQuery]);
+  }, [normalized.items, searchQuery, deletedIds]);
 
   useEffect(() => {
     if (selectedIndex >= listItems.length) {
@@ -337,12 +348,17 @@ export function TranscriptionList({
 
   const handleDelete = useCallback(async () => {
     if (!selectedItem) return;
+    const itemId = selectedItem.id;
+    // Optimistic: remove from view immediately
+    setDeletedIds((prev) => [...prev, itemId]);
+    setNotice(`Deleted ${itemId}`);
     setIsDeleting(true);
-    setNotice(null);
     try {
       const config = (await readConfig()) ?? {};
       const { token, expired } = resolveToken(config);
       if (!token) {
+        // Revert optimistic delete
+        setDeletedIds((prev) => prev.filter((id) => id !== itemId));
         setNotice(
           expired
             ? "Token expired. Run `xevol login` to re-authenticate."
@@ -351,14 +367,17 @@ export function TranscriptionList({
         return;
       }
       const apiUrl = resolveApiUrl(config);
-      await apiFetch(`/v1/transcriptions/${selectedItem.id}`, {
+      await apiFetch(`/v1/transcriptions/${itemId}`, {
         method: "DELETE",
         token,
         apiUrl,
       });
-      setNotice(`Deleted ${selectedItem.id}`);
+      // Refresh to sync server state (deletedIds will be cleared on new data)
       await refresh();
+      setDeletedIds((prev) => prev.filter((id) => id !== itemId));
     } catch (err) {
+      // Revert optimistic delete on failure
+      setDeletedIds((prev) => prev.filter((id) => id !== itemId));
       setNotice((err as Error).message);
     } finally {
       setIsDeleting(false);
@@ -370,12 +389,19 @@ export function TranscriptionList({
       setNotice("No transcriptions selected.");
       return;
     }
+    const idsToDelete = [...selectedIds];
+    // Optimistic: remove all selected from view immediately
+    setDeletedIds((prev) => [...prev, ...idsToDelete]);
+    setNotice(`Deleted ${idsToDelete.length} transcriptions`);
+    setSelectedIds([]);
     setIsBatchDeleting(true);
-    setNotice(null);
     try {
       const config = (await readConfig()) ?? {};
       const { token, expired } = resolveToken(config);
       if (!token) {
+        // Revert optimistic delete
+        setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+        setSelectedIds(idsToDelete);
         setNotice(
           expired
             ? "Token expired. Run `xevol login` to re-authenticate."
@@ -384,17 +410,18 @@ export function TranscriptionList({
         return;
       }
       const apiUrl = resolveApiUrl(config);
-      for (const id of selectedIds) {
+      for (const id of idsToDelete) {
         await apiFetch(`/v1/transcriptions/${id}`, {
           method: "DELETE",
           token,
           apiUrl,
         });
       }
-      setNotice(`Deleted ${selectedIds.length} transcriptions`);
-      setSelectedIds([]);
       await refresh();
+      setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
     } catch (err) {
+      // Revert optimistic delete on failure
+      setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
       setNotice((err as Error).message);
     } finally {
       setIsBatchDeleting(false);
