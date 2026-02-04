@@ -86,8 +86,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Update Homebrew Formula
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.VERSION }}
           SHA_LINUX: ${{ steps.hashes.outputs.SHA_LINUX }}
           SHA_DARWIN_X64: ${{ steps.hashes.outputs.SHA_DARWIN_X64 }}
