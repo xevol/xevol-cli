@@ -275,6 +275,7 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
         borderColor={colors.primary}
         paddingX={2}
         paddingY={1}
+        backgroundColor="#111111"
       >
         <Text bold color={colors.primary}>
           Add YouTube URL

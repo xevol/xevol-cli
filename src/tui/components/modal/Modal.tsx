@@ -25,7 +25,6 @@ export function Modal({ children }: ModalProps): JSX.Element {
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      backgroundColor="#111111"
     >
       {children}
     </Box>
