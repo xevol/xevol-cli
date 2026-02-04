@@ -371,6 +371,24 @@ export function TranscriptionDetail({ id, navigation, onBack, terminal }: Transc
 
   const streamControllerRef = React.useRef<AbortController | null>(null);
 
+  // Auto-trigger "formatted" spike for completed transcriptions
+  const hasAutoTriggered = React.useRef(false);
+  useEffect(() => {
+    if (hasAutoTriggered.current) return;
+    if (!analysis || !prompts.length) return;
+    if (streaming || creatingSpike) return;
+
+    const currentStatus = String(status).toLowerCase();
+    if (currentStatus !== "completed" && currentStatus !== "done") return;
+
+    const formattedPrompt = prompts.find((p) => p.id === "formatted");
+    if (!formattedPrompt) return;
+
+    hasAutoTriggered.current = true;
+    setActiveTab("spikes");
+    void createAndStreamSpike(formattedPrompt);
+  }, [analysis, prompts, status, streaming, creatingSpike, createAndStreamSpike]);
+
   // Cleanup stream on unmount
   useEffect(() => {
     return () => {
