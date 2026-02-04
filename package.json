@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node --minify",
+    "build": "bun build src/index.ts --outdir dist --target node --minify --external react-devtools-core",
     "lint": "biome check --diagnostic-level=error src/",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build"
