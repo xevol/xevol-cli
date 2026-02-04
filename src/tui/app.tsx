@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { checkForUpdate } from "../lib/update-check";
-import { AddUrlModal } from "./components/AddUrlModal";
+import { AddUrlModal } from "./components/modal/AddUrlModal";
+import { Modal } from "./components/modal/Modal";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
 import { StatsBar } from "./components/StatsBar";
@@ -166,9 +167,9 @@ function AppInner({ version }: AppProps): JSX.Element {
           {content}
         </Box>
         {showAddUrl && (
-          <Box position="absolute" flexDirection="column" width="100%" height="100%">
+          <Modal>
             <AddUrlModal onDismiss={handleDismissAddUrl} onSubmitted={handleUrlSubmitted} />
-          </Box>
+          </Modal>
         )}
       </Box>
       <StatsBar total={statsTotal} used={statsUsed} limit={statsLimit} workspace={statsWorkspace} />
