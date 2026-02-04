@@ -162,12 +162,13 @@ function AppInner({ version }: AppProps): JSX.Element {
     <Box flexDirection="column">
       <Header version={version} screen={currentScreen} email={userEmail} plan={userPlan} />
       <Box flexDirection="column" flexGrow={1}>
-        <Box key={currentScreen} flexDirection="column" flexGrow={1}>
-          {content}
-        </Box>
-        {showAddUrl && (
-          <Box position="absolute" flexDirection="column" width="100%" height="100%">
+        {showAddUrl ? (
+          <Box flexDirection="column" flexGrow={1}>
             <AddUrlModal onDismiss={handleDismissAddUrl} onSubmitted={handleUrlSubmitted} />
+          </Box>
+        ) : (
+          <Box key={currentScreen} flexDirection="column" flexGrow={1}>
+            {content}
           </Box>
         )}
       </Box>
