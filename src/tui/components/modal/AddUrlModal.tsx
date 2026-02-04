@@ -2,13 +2,14 @@ import { Box, Text, useInput } from "ink";
 import InkSpinner from "ink-spinner";
 import TextInput from "ink-text-input";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { apiFetch } from "../../lib/api";
-import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
-import { parseResponse } from "../../lib/parseResponse";
-import { AddResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
-import { extractId, extractStatus, pickValue } from "../../lib/utils";
-import { useInputLock } from "../context/InputContext";
-import { colors } from "../theme";
+import { apiFetch } from "../../../lib/api";
+import { readConfig, resolveApiUrl, resolveToken } from "../../../lib/config";
+import { parseResponse } from "../../../lib/parseResponse";
+import { AddResponseSchema, SpikeCreateResponseSchema } from "../../../lib/schemas";
+import { extractId, extractStatus, pickValue } from "../../../lib/utils";
+import { useInputLock } from "../../context/InputContext";
+import { colors } from "../../theme";
+import { Modal } from "./Modal";
 
 type Phase = "input" | "submitting" | "processing" | "creating-spike" | "done" | "error";
 
@@ -266,7 +267,7 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
   const modalWidth = 60;
 
   return (
-    <Box flexDirection="column" alignItems="center" justifyContent="center" width="100%" height="100%">
+    <Modal>
       <Box
         flexDirection="column"
         width={modalWidth}
@@ -371,6 +372,6 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
           </Box>
         )}
       </Box>
-    </Box>
+    </Modal>
   );
 }
