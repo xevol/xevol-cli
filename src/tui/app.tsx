@@ -162,13 +162,20 @@ function AppInner({ version }: AppProps): JSX.Element {
     <Box flexDirection="column">
       <Header version={version} screen={currentScreen} email={userEmail} plan={userPlan} />
       <Box flexDirection="column" flexGrow={1}>
-        {showAddUrl ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <AddUrlModal onDismiss={handleDismissAddUrl} onSubmitted={handleUrlSubmitted} />
-          </Box>
-        ) : (
-          <Box key={currentScreen} flexDirection="column" flexGrow={1}>
-            {content}
+        <Box key={currentScreen} flexDirection="column" flexGrow={1}>
+          {content}
+        </Box>
+        {showAddUrl && (
+          <Box position="absolute" flexDirection="column" width={terminal.columns} height={terminal.rows}>
+            {/* Opaque backdrop: fill entire area with blank lines to cover content behind */}
+            <Box flexDirection="column" width={terminal.columns} height={terminal.rows}>
+              {Array.from({ length: terminal.rows }, (_, i) => (
+                <Text key={i}>{" ".repeat(terminal.columns)}</Text>
+              ))}
+            </Box>
+            <Box position="absolute" flexDirection="column" width="100%" height="100%">
+              <AddUrlModal onDismiss={handleDismissAddUrl} onSubmitted={handleUrlSubmitted} />
+            </Box>
           </Box>
         )}
       </Box>
