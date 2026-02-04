@@ -1,7 +1,7 @@
+import type { Command } from "commander";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import type { Command } from "commander";
 
 export interface XevolConfig {
   apiUrl?: string;
@@ -85,7 +85,10 @@ export function resolveApiUrl(config?: XevolConfig): string {
   return process.env.XEVOL_API_URL ?? config?.apiUrl ?? DEFAULT_API_URL;
 }
 
-export function resolveToken(config?: XevolConfig, tokenOverride?: string): { token: string | undefined; expired: boolean } {
+export function resolveToken(
+  config?: XevolConfig,
+  tokenOverride?: string,
+): { token: string | undefined; expired: boolean } {
   const token = tokenOverride ?? process.env.XEVOL_TOKEN ?? config?.token;
   if (token && !tokenOverride && !process.env.XEVOL_TOKEN && config?.expiresAt) {
     const expiresAt = new Date(config.expiresAt).getTime();
@@ -98,6 +101,7 @@ export function resolveToken(config?: XevolConfig, tokenOverride?: string): { to
 
 export function getTokenOverride(options: { token?: string }, command: Command): string | undefined {
   if (options.token) return options.token;
-  const globals = typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : command.parent?.opts() ?? {};
+  const globals =
+    typeof command.optsWithGlobals === "function" ? command.optsWithGlobals() : (command.parent?.opts() ?? {});
   return globals.token as string | undefined;
 }

@@ -1,6 +1,6 @@
-import { Command } from "commander";
 import chalk from "chalk";
 import { spawn } from "child_process";
+import type { Command } from "commander";
 
 function openUrl(url: string): void {
   let cmd: string;

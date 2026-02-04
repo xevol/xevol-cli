@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
-import path from "path";
 import os from "os";
+import path from "path";
 
 const CHECK_FILE = path.join(os.homedir(), ".xevol", "update-check.json");
 const ONE_DAY = 24 * 60 * 60 * 1000;
@@ -55,7 +55,7 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
     const now = Date.now();
 
     // Return cached result if checked recently
-    if (existing && (now - existing.lastCheck) < ONE_DAY) {
+    if (existing && now - existing.lastCheck < ONE_DAY) {
       if (existing.latestVersion && compareVersions(currentVersion, existing.latestVersion)) {
         return { current: currentVersion, latest: existing.latestVersion };
       }

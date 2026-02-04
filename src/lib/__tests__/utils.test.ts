@@ -1,12 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  pickValue,
-  pickValueOrDash,
-  pickSessionField,
-  pickNumberField,
-  extractId,
-  extractStatus,
-} from "../utils";
+import { extractId, extractStatus, pickNumberField, pickSessionField, pickValue, pickValueOrDash } from "../utils";
 
 describe("pickValue", () => {
   test("returns first matching string value", () => {

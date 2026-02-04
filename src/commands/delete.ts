@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { createInterface } from "readline";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";

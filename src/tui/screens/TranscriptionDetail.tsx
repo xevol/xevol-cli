@@ -1,26 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Text, useInput } from "ink";
 import { promises as fs } from "fs";
+import { Box, Text, useInput } from "ink";
 import path from "path";
-import { useApi } from "../hooks/useApi";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
-import { Spinner } from "../components/Spinner";
-import { StatusBadge } from "../components/StatusBadge";
-import { colors } from "../theme";
-import { pickValue } from "../../lib/utils";
-import { formatDuration } from "../../lib/output";
-import { openUrl } from "../utils/openUrl";
-import { wrapText } from "../utils/wrapText";
-import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
-import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
 import { addToHistory } from "../../lib/history";
-import { streamSSE, type SSEEvent } from "../../lib/sse";
-import { copyToClipboard } from "../utils/clipboard";
-import type { NavigationState } from "../hooks/useNavigation";
-import { useLayout } from "../context/LayoutContext";
+import { formatDuration } from "../../lib/output";
 import { parseResponse } from "../../lib/parseResponse";
 import { AnalysisResponseSchema, PromptsResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
+import { type SSEEvent, streamSSE } from "../../lib/sse";
+import { pickValue } from "../../lib/utils";
+import { Spinner } from "../components/Spinner";
+import { StatusBadge } from "../components/StatusBadge";
+import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import type { NavigationState } from "../hooks/useNavigation";
+import { colors } from "../theme";
+import { copyToClipboard } from "../utils/clipboard";
+import { buildMarkdownFromAnalysis } from "../utils/markdown";
+import { openUrl } from "../utils/openUrl";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
+import { wrapText } from "../utils/wrapText";
 
 interface TerminalSize {
   columns: number;
@@ -69,7 +69,10 @@ function formatCreatedAt(raw?: string): string {
 function shortDescription(desc: string | undefined, maxLen = 60): string {
   if (!desc) return "";
   // Strip markdown headers and formatting
-  let clean = desc.replace(/^#+\s+.*/gm, "").replace(/[*_`#]/g, "").trim();
+  let clean = desc
+    .replace(/^#+\s+.*/gm, "")
+    .replace(/[*_`#]/g, "")
+    .trim();
   // Take first sentence (up to first period or maxLen)
   const periodIdx = clean.indexOf(".");
   if (periodIdx > 0 && periodIdx < maxLen) {
@@ -100,7 +103,9 @@ function sortPrompts(prompts: Prompt[]): Prompt[] {
  * Extract content from SSE events for spike streaming.
  * API sends: {type:"token",content:"..."}, {type:"full",content:"..."}, {type:"done"}, {type:"error",error:"..."}
  */
-function extractSpikeChunk(event: SSEEvent): { action: "append" | "replace" | "done" | "error"; content: string } | null {
+function extractSpikeChunk(
+  event: SSEEvent,
+): { action: "append" | "replace" | "done" | "error"; content: string } | null {
   // Handle JSON event stream from the spike API
   try {
     const parsed = JSON.parse(event.data) as { type?: string; content?: string; error?: string };
@@ -148,12 +153,7 @@ function extractSpikeChunk(event: SSEEvent): { action: "append" | "replace" | "d
   return null;
 }
 
-export function TranscriptionDetail({
-  id,
-  navigation,
-  onBack,
-  terminal,
-}: TranscriptionDetailProps): JSX.Element {
+export function TranscriptionDetail({ id, navigation, onBack, terminal }: TranscriptionDetailProps): JSX.Element {
   const { setFooterHints } = useLayout();
   const [activeTab, setActiveTab] = useState<TabName>("transcript");
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -174,9 +174,16 @@ export function TranscriptionDetail({
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const { data: rawDetailData, loading: rawDetailLoading, error, refresh } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
+  const {
+    data: rawDetailData,
+    loading: rawDetailLoading,
+    error,
+    refresh,
+  } = useApi<Record<string, unknown>>(`/v1/analysis/${id}`, {}, [id]);
   const prevDetailRef = useRef<Record<string, unknown> | null>(null);
-  const validatedDetailData = rawDetailData ? parseResponse(AnalysisResponseSchema, rawDetailData, "analysis-detail") : null;
+  const validatedDetailData = rawDetailData
+    ? parseResponse(AnalysisResponseSchema, rawDetailData, "analysis-detail")
+    : null;
   const data = validatedDetailData ?? prevDetailRef.current;
   useEffect(() => {
     if (validatedDetailData) prevDetailRef.current = validatedDetailData;
@@ -257,11 +264,7 @@ export function TranscriptionDetail({
   const contentHeight = Math.max(4, terminal.rows - reservedRows);
 
   const currentParsedLines =
-    activeTab === "transcript"
-      ? transcriptParsed
-      : spikeContent !== null
-        ? spikeContentParsed
-        : [];
+    activeTab === "transcript" ? transcriptParsed : spikeContent !== null ? spikeContentParsed : [];
 
   const maxOffset = Math.max(0, currentParsedLines.length - contentHeight);
 
@@ -276,94 +279,115 @@ export function TranscriptionDetail({
   }, [activeTab]);
 
   // Create spike and stream content
-  const createAndStreamSpike = useCallback(async (prompt: Prompt) => {
-    setActivePromptName(prompt.name);
-    setSpikeContent("");
-    setStreamError(null);
-    setCreatingSpike(true);
-    setScrollOffset(0);
+  const createAndStreamSpike = useCallback(
+    async (prompt: Prompt) => {
+      setActivePromptName(prompt.name);
+      setSpikeContent("");
+      setStreamError(null);
+      setCreatingSpike(true);
+      setScrollOffset(0);
 
-    const config = (await readConfig()) ?? {};
-    const { token, expired } = resolveToken(config);
-    if (!token) {
-      setStreamError(
-        expired
-          ? "Token expired. Run `xevol login` to re-authenticate."
-          : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
-      );
-      setCreatingSpike(false);
-      return;
-    }
-
-    const apiUrl = resolveApiUrl(config);
-
-    try {
-      // POST to create the spike
-      const rawResponse = await apiFetch<Record<string, unknown>>(`/spikes/${id}`, {
-        method: "POST",
-        body: { promptId: prompt.id, outputLang: "en" },
-        token,
-        apiUrl,
-      });
-      const response = parseResponse(SpikeCreateResponseSchema, rawResponse, "spike-create");
-
-      setCreatingSpike(false);
-
-      // Check for cached content
-      const cachedContent = (response.content as string | undefined) ?? (response.markdown as string | undefined);
-      if (cachedContent) {
-        setSpikeContent(cachedContent);
+      const config = (await readConfig()) ?? {};
+      const { token, expired } = resolveToken(config);
+      if (!token) {
+        setStreamError(
+          expired
+            ? "Token expired. Run `xevol login` to re-authenticate."
+            : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+        );
+        setCreatingSpike(false);
         return;
       }
 
-      // Need to stream
-      const spikeId = (response.spikeId as string | undefined) ?? (response.id as string | undefined);
-      if (!spikeId) {
-        setStreamError("No spikeId returned from API");
-        return;
-      }
-
-      setStreaming(true);
-      let fullContent = "";
-
-      const controller = new AbortController();
-      // Store controller so cleanup can abort
-      streamControllerRef.current = controller;
+      const apiUrl = resolveApiUrl(config);
 
       try {
-        for await (const event of streamSSE(`/spikes/stream/${spikeId}`, {
+        // POST to create the spike
+        const rawResponse = await apiFetch<Record<string, unknown>>(`/spikes/${id}`, {
+          method: "POST",
+          body: { promptId: prompt.id, outputLang: "en" },
           token,
           apiUrl,
-          signal: controller.signal,
-        })) {
-          const result = extractSpikeChunk(event);
-          if (!result) continue;
+        });
+        const response = parseResponse(SpikeCreateResponseSchema, rawResponse, "spike-create");
 
-          if (result.action === "append") {
-            fullContent += result.content;
-            setSpikeContent(fullContent);
-          } else if (result.action === "replace") {
-            fullContent = result.content;
-            setSpikeContent(fullContent);
-          } else if (result.action === "error") {
-            setStreamError(result.content);
-            break;
-          } else if (result.action === "done") {
-            break;
-          }
+        setCreatingSpike(false);
+
+        // Check for cached content
+        const cachedContent = (response.content as string | undefined) ?? (response.markdown as string | undefined);
+        if (cachedContent) {
+          setSpikeContent(cachedContent);
+          return;
         }
-      } finally {
+
+        // Need to stream
+        const spikeId = (response.spikeId as string | undefined) ?? (response.id as string | undefined);
+        if (!spikeId) {
+          setStreamError("No spikeId returned from API");
+          return;
+        }
+
+        setStreaming(true);
+        let fullContent = "";
+
+        const controller = new AbortController();
+        // Store controller so cleanup can abort
+        streamControllerRef.current = controller;
+
+        try {
+          for await (const event of streamSSE(`/spikes/stream/${spikeId}`, {
+            token,
+            apiUrl,
+            signal: controller.signal,
+          })) {
+            const result = extractSpikeChunk(event);
+            if (!result) continue;
+
+            if (result.action === "append") {
+              fullContent += result.content;
+              setSpikeContent(fullContent);
+            } else if (result.action === "replace") {
+              fullContent = result.content;
+              setSpikeContent(fullContent);
+            } else if (result.action === "error") {
+              setStreamError(result.content);
+              break;
+            } else if (result.action === "done") {
+              break;
+            }
+          }
+        } finally {
+          setStreaming(false);
+          streamControllerRef.current = null;
+        }
+      } catch (err) {
+        setCreatingSpike(false);
         setStreaming(false);
-        streamControllerRef.current = null;
+        setStreamError((err as Error).message);
       }
-    } catch (err) {
-      setCreatingSpike(false);
-      setStreaming(false);
-      setStreamError((err as Error).message);
-    }
-  }, [id]);
+    },
+    [id],
+  );
 
   const streamControllerRef = React.useRef<AbortController | null>(null);
+
+  // Auto-trigger "formatted" spike for completed transcriptions
+  const hasAutoTriggered = React.useRef(false);
+  useEffect(() => {
+    if (hasAutoTriggered.current) return;
+    if (!analysis || !prompts.length) return;
+    if (streaming || creatingSpike) return;
+
+    const currentStatus = String(status).toLowerCase();
+    if (currentStatus !== "completed" && currentStatus !== "done") return;
+
+    const formattedPrompt = prompts.find((p) => p.id === "formatted");
+    if (!formattedPrompt) return;
+
+    hasAutoTriggered.current = true;
+    setActiveTab("spikes");
+    void createAndStreamSpike(formattedPrompt);
+  }, [analysis, prompts, status, streaming, creatingSpike, createAndStreamSpike]);
 
   // Cleanup stream on unmount
   useEffect(() => {
@@ -382,9 +406,7 @@ export function TranscriptionDetail({
 
   // Footer hints based on tab and state
   useEffect(() => {
-    const common: Hint[] = [
-      { key: "Tab/1/2", description: "switch tab" },
-    ];
+    const common: Hint[] = [{ key: "Tab/1/2", description: "switch tab" }];
 
     if (activeTab === "transcript") {
       setFooterHints([
@@ -443,8 +465,7 @@ export function TranscriptionDetail({
 
   const handleOpen = useCallback(() => {
     const url =
-      pickValue(analysis ?? {}, ["url", "youtubeUrl", "videoUrl"]) ??
-      `https://xevol.com/t/${encodeURIComponent(id)}`;
+      pickValue(analysis ?? {}, ["url", "youtubeUrl", "videoUrl"]) ?? `https://xevol.com/t/${encodeURIComponent(id)}`;
     openUrl(url);
     setNotice("Opened in browser");
   }, [analysis, id]);
@@ -596,17 +617,11 @@ export function TranscriptionDetail({
   // Tab bar component
   const tabBar = (
     <Box flexDirection="row" marginBottom={1}>
-      <Text
-        color={activeTab === "transcript" ? colors.primary : colors.secondary}
-        bold={activeTab === "transcript"}
-      >
+      <Text color={activeTab === "transcript" ? colors.primary : colors.secondary} bold={activeTab === "transcript"}>
         {activeTab === "transcript" ? "▸ " : "  "}Transcript
       </Text>
-      <Text color={colors.secondary}>  │  </Text>
-      <Text
-        color={activeTab === "spikes" ? colors.primary : colors.secondary}
-        bold={activeTab === "spikes"}
-      >
+      <Text color={colors.secondary}> │ </Text>
+      <Text color={activeTab === "spikes" ? colors.primary : colors.secondary} bold={activeTab === "spikes"}>
         {activeTab === "spikes" ? "▸ " : "  "}Spikes
       </Text>
     </Box>
@@ -615,11 +630,7 @@ export function TranscriptionDetail({
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       {loading && <Spinner label="Fetching transcription…" />}
-      {error && (
-        <Text color={colors.error}>
-          {error} (press r to retry)
-        </Text>
-      )}
+      {error && <Text color={colors.error}>{error} (press r to retry)</Text>}
 
       {!loading && !error && analysis && (
         <Box flexDirection="column">
@@ -651,9 +662,7 @@ export function TranscriptionDetail({
           {activeTab === "spikes" && spikeContent === null && (
             <Box flexDirection="column">
               {promptsLoading && <Spinner label="Fetching prompts…" />}
-              {promptsError && (
-                <Text color={colors.error}>{promptsError} (press r to retry)</Text>
-              )}
+              {promptsError && <Text color={colors.error}>{promptsError} (press r to retry)</Text>}
               {!promptsLoading && !promptsError && prompts.length === 0 && (
                 <Text color={colors.secondary}>No prompts available.</Text>
               )}
@@ -662,10 +671,7 @@ export function TranscriptionDetail({
                 (() => {
                   const maxVisible = Math.max(4, terminal.rows - 14);
                   const maxStart = Math.max(0, prompts.length - maxVisible);
-                  const windowStart = Math.min(
-                    Math.max(0, promptSelectedIndex - Math.floor(maxVisible / 2)),
-                    maxStart,
-                  );
+                  const windowStart = Math.min(Math.max(0, promptSelectedIndex - Math.floor(maxVisible / 2)), maxStart);
                   const visible = prompts.slice(windowStart, windowStart + maxVisible);
 
                   // Calculate max name length for alignment
@@ -684,17 +690,14 @@ export function TranscriptionDetail({
                     return (
                       <Box key={prompt.id}>
                         <Box width={2}>
-                          <Text color={isSelected ? colors.primary : colors.secondary}>
-                            {isSelected ? "›" : " "}
-                          </Text>
+                          <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
                         </Box>
                         <Box flexDirection="row">
                           <Text color={isSelected ? colors.primary : undefined}>
-                            {isFeatured ? "★ " : "  "}{prompt.name.padEnd(nameColWidth)}
+                            {isFeatured ? "★ " : "  "}
+                            {prompt.name.padEnd(nameColWidth)}
                           </Text>
-                          {truncDesc ? (
-                            <Text color={colors.secondary}> {truncDesc}</Text>
-                          ) : null}
+                          {truncDesc ? <Text color={colors.secondary}> {truncDesc}</Text> : null}
                         </Box>
                       </Box>
                     );
@@ -739,9 +742,7 @@ export function TranscriptionDetail({
         </Box>
       )}
 
-      {!loading && !error && !analysis && (
-        <Text color={colors.secondary}>No transcription data available.</Text>
-      )}
+      {!loading && !error && !analysis && <Text color={colors.secondary}>No transcription data available.</Text>}
 
       {exporting && (
         <Box marginTop={1}>

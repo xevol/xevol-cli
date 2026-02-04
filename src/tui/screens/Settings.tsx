@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useApi } from "../hooks/useApi";
-import { Spinner } from "../components/Spinner";
-import { colors } from "../theme";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_API_URL, readConfig, writeConfig, type XevolConfig } from "../../lib/config";
-import { useLayout } from "../context/LayoutContext";
-import { useInputLock } from "../context/InputContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { StatusResponseSchema } from "../../lib/schemas";
+import { Spinner } from "../components/Spinner";
+import { useInputLock } from "../context/InputContext";
+import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import { colors } from "../theme";
 
 interface SettingsProps {
   onBack: () => void;
@@ -257,9 +257,7 @@ export function Settings({ onBack }: SettingsProps): JSX.Element {
       if (!setting?.editable) return;
       setEditingKey(setting.key);
       if (setting.key === "default.lang") {
-        const initialLang = LANGUAGES.includes(setting.value as LanguageCode)
-          ? (setting.value as LanguageCode)
-          : "en";
+        const initialLang = LANGUAGES.includes(setting.value as LanguageCode) ? (setting.value as LanguageCode) : "en";
         setEditValue(initialLang);
         return;
       }
@@ -272,13 +270,17 @@ export function Settings({ onBack }: SettingsProps): JSX.Element {
       <Text color={colors.primary}>Settings</Text>
 
       <Box flexDirection="column" marginTop={1} marginBottom={1}>
-        <Text color={colors.secondary} bold>Usage</Text>
+        <Text color={colors.secondary} bold>
+          Usage
+        </Text>
         {statusLoading && <Spinner label="Loading usage…" />}
         {statusError && <Text color={colors.error}>{statusError}</Text>}
         {!statusLoading && !statusError && statusData && (
           <Box flexDirection="column">
             {usageLines.map((line) => (
-              <Text key={line} color={colors.secondary}>{line}</Text>
+              <Text key={line} color={colors.secondary}>
+                {line}
+              </Text>
             ))}
           </Box>
         )}

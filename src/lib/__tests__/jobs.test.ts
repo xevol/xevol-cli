@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { saveJobState, loadJobState, type JobState } from "../jobs";
+import { type JobState, loadJobState, saveJobState } from "../jobs";
 
 // We test against the real jobs dir to avoid mocking
 // but use a unique ID to avoid conflicts

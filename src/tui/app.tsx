@@ -1,23 +1,23 @@
+import { Box, render, Text, useApp, useInput } from "ink";
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, Text, render, useApp, useInput } from "ink";
-import { Header } from "./components/Header";
-import { Footer } from "./components/Footer";
-import { StatsBar } from "./components/StatsBar";
-import { useNavigation } from "./hooks/useNavigation";
-import { TranscriptionList } from "./screens/TranscriptionList";
-import { Help } from "./screens/Help";
-import { Dashboard } from "./screens/Dashboard";
-import { TranscriptionDetail } from "./screens/TranscriptionDetail";
-import { SpikeViewer } from "./screens/SpikeViewer";
-import { Workspaces } from "./screens/Workspaces";
-import { Settings } from "./screens/Settings";
-import { AddUrl } from "./screens/AddUrl";
-import { InputProvider, useInputLock } from "./context/InputContext";
-import { LayoutProvider, useLayout } from "./context/LayoutContext";
-import { useTerminal } from "./hooks/useTerminal";
 import { apiFetch } from "../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { checkForUpdate } from "../lib/update-check";
+import { AddUrlModal } from "./components/AddUrlModal";
+import { Footer } from "./components/Footer";
+import { Header } from "./components/Header";
+import { StatsBar } from "./components/StatsBar";
+import { InputProvider, useInputLock } from "./context/InputContext";
+import { LayoutProvider, useLayout } from "./context/LayoutContext";
+import { useNavigation } from "./hooks/useNavigation";
+import { useTerminal } from "./hooks/useTerminal";
+import { Dashboard } from "./screens/Dashboard";
+import { Help } from "./screens/Help";
+import { Settings } from "./screens/Settings";
+import { SpikeViewer } from "./screens/SpikeViewer";
+import { TranscriptionDetail } from "./screens/TranscriptionDetail";
+import { TranscriptionList } from "./screens/TranscriptionList";
+import { Workspaces } from "./screens/Workspaces";
 
 interface AppProps {
   version: string;
@@ -35,6 +35,23 @@ function AppInner({ version }: AppProps): JSX.Element {
   const [statsLimit, setStatsLimit] = useState<number | undefined>(undefined);
   const [statsWorkspace, setStatsWorkspace] = useState<string | undefined>(undefined);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
+  const [showAddUrl, setShowAddUrl] = useState(false);
+  const listRefreshRef = React.useRef<(() => void) | null>(null);
+
+  const handleOpenAddUrl = React.useCallback(() => {
+    setShowAddUrl(true);
+  }, []);
+
+  const handleDismissAddUrl = React.useCallback(() => {
+    setShowAddUrl(false);
+    // Trigger list refresh if available
+    listRefreshRef.current?.();
+  }, []);
+
+  const handleUrlSubmitted = React.useCallback(() => {
+    // Trigger list refresh when URL is submitted or pipeline completes
+    listRefreshRef.current?.();
+  }, []);
 
   // Check for updates (non-blocking, once per day)
   useEffect(() => {
@@ -53,8 +70,7 @@ function AppInner({ version }: AppProps): JSX.Element {
         const apiUrl = resolveApiUrl(config);
         const data = await apiFetch<Record<string, unknown>>("/auth/cli/status", { token, apiUrl });
         const email =
-          (data.email as string | undefined) ??
-          (data.user as Record<string, unknown> | undefined)?.email?.toString();
+          (data.email as string | undefined) ?? (data.user as Record<string, unknown> | undefined)?.email?.toString();
         const plan = (data.plan as string | undefined) ?? undefined;
         if (email) setUserEmail(email);
         if (plan) setUserPlan(plan);
@@ -78,8 +94,8 @@ function AppInner({ version }: AppProps): JSX.Element {
   }, [currentScreen]);
 
   useInput((input) => {
-    // Don't intercept keys when any text input is active
-    if (isInputActive) return;
+    // Don't intercept keys when any text input is active or modal is open
+    if (isInputActive || showAddUrl) return;
 
     if (input === "q") {
       exit();
@@ -118,42 +134,17 @@ function AppInner({ version }: AppProps): JSX.Element {
 
   let content: JSX.Element;
   if (currentScreen === "dashboard") {
-    content = (
-      <Dashboard
-        version={version}
-        navigation={navigation}
-      />
-    );
+    content = <Dashboard version={version} navigation={navigation} onAddUrl={handleOpenAddUrl} />;
   } else if (currentScreen === "help") {
     content = <Help onClose={pop} />;
   } else if (currentScreen === "detail") {
-    content = (
-      <TranscriptionDetail
-        id={detailId}
-        navigation={navigation}
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
+    content = <TranscriptionDetail id={detailId} navigation={navigation} onBack={pop} terminal={terminal} />;
   } else if (currentScreen === "spike-viewer") {
-    content = (
-      <SpikeViewer
-        id={detailId}
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
+    content = <SpikeViewer id={detailId} onBack={pop} terminal={terminal} />;
   } else if (currentScreen === "workspaces") {
     content = <Workspaces onBack={pop} />;
   } else if (currentScreen === "settings") {
     content = <Settings onBack={pop} />;
-  } else if (currentScreen === "add-url") {
-    content = (
-      <AddUrl
-        onBack={pop}
-        terminal={terminal}
-      />
-    );
   } else {
     content = (
       <TranscriptionList
@@ -161,6 +152,8 @@ function AppInner({ version }: AppProps): JSX.Element {
         navigation={navigation}
         onBack={pop}
         terminal={terminal}
+        onAddUrl={handleOpenAddUrl}
+        refreshRef={listRefreshRef}
       />
     );
   }
@@ -172,6 +165,11 @@ function AppInner({ version }: AppProps): JSX.Element {
         <Box key={currentScreen} flexDirection="column" flexGrow={1}>
           {content}
         </Box>
+        {showAddUrl && (
+          <Box position="absolute" flexDirection="column" width="100%" height="100%">
+            <AddUrlModal onDismiss={handleDismissAddUrl} onSubmitted={handleUrlSubmitted} />
+          </Box>
+        )}
       </Box>
       <StatsBar total={statsTotal} used={statsUsed} limit={statsLimit} workspace={statsWorkspace} />
       <Footer hints={footerHints} status={footerStatus} />

@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { promises as fs } from "fs";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
@@ -66,12 +66,15 @@ export function registerExportCommand(program: Command): void {
     .option("--format <fmt>", "Output format: json, markdown, text", "json")
     .option("--output <file>", "Write to file instead of stdout")
     .option("--json", "Shorthand for --format json")
-    .addHelpText("after", `
+    .addHelpText(
+      "after",
+      `
 Examples:
   $ xevol export abc123
   $ xevol export abc123 --format markdown
   $ xevol export abc123 --format text --output transcript.txt
-  $ xevol export abc123 --json > data.json`)
+  $ xevol export abc123 --json > data.json`,
+    )
     .action(async (id: string, options: ExportOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};
@@ -82,7 +85,7 @@ Examples:
           console.error(
             expired
               ? "Token expired. Run `xevol login` to re-authenticate."
-              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
           );
           process.exitCode = 1;
           return;

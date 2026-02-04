@@ -1,8 +1,8 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { loadJobState, saveJobState, type JobState } from "../lib/jobs";
+import { type JobState, loadJobState, saveJobState } from "../lib/jobs";
 import { printJson, startSpinner } from "../lib/output";
 import { streamSpikeToTerminal } from "./stream";
 
@@ -136,9 +136,7 @@ export function registerResumeCommand(program: Command): void {
               spike.spikeId = spikeId;
 
               // If content already available (cached), print it
-              const cachedContent =
-                (spikeResponse.content as string) ??
-                (spikeResponse.markdown as string);
+              const cachedContent = (spikeResponse.content as string) ?? (spikeResponse.markdown as string);
               if (cachedContent) {
                 spinner.succeed(`Analysis ready: ${spike.promptId}`);
                 if (!options.json) {

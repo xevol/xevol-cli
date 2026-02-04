@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
 import { printJson, renderTable, startSpinner } from "../lib/output";
@@ -27,20 +27,12 @@ function toStringValue(value: unknown): string | undefined {
 
 function extractWorkspaceId(item: Record<string, unknown>): string | undefined {
   return (
-    toStringValue(item.id) ??
-    toStringValue(item.workspaceId) ??
-    toStringValue(item._id) ??
-    toStringValue(item.slug)
+    toStringValue(item.id) ?? toStringValue(item.workspaceId) ?? toStringValue(item._id) ?? toStringValue(item.slug)
   );
 }
 
 function extractWorkspaceName(item: Record<string, unknown>): string {
-  return (
-    toStringValue(item.name) ??
-    toStringValue(item.title) ??
-    toStringValue(item.workspaceName) ??
-    "-"
-  );
+  return toStringValue(item.name) ?? toStringValue(item.title) ?? toStringValue(item.workspaceName) ?? "-";
 }
 
 function extractWorkspaceRole(item: Record<string, unknown>): string {
@@ -82,13 +74,7 @@ function extractWorkspaceBalance(item: Record<string, unknown>): string {
 }
 
 function extractMemberCount(item: Record<string, unknown>): string {
-  const candidates = [
-    item.memberCount,
-    item.membersCount,
-    item.members,
-    item.usersCount,
-    item.userCount,
-  ];
+  const candidates = [item.memberCount, item.membersCount, item.members, item.usersCount, item.userCount];
 
   for (const value of candidates) {
     if (Array.isArray(value)) return String(value.length);
@@ -96,10 +82,7 @@ function extractMemberCount(item: Record<string, unknown>): string {
     if (asString) return asString;
     if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
-      const nested =
-        toStringValue(record.count) ??
-        toStringValue(record.total) ??
-        toStringValue(record.members);
+      const nested = toStringValue(record.count) ?? toStringValue(record.total) ?? toStringValue(record.members);
       if (nested) return nested;
     }
   }
@@ -124,7 +107,7 @@ export function registerWorkspaceCommand(program: Command): void {
           console.error(
             expired
               ? "Token expired. Run `xevol login` to re-authenticate."
-              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
           );
           process.exitCode = 1;
           return;
@@ -190,7 +173,7 @@ export function registerWorkspaceCommand(program: Command): void {
           console.error(
             expired
               ? "Token expired. Run `xevol login` to re-authenticate."
-              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
           );
           process.exitCode = 1;
           return;

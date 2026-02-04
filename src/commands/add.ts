@@ -1,11 +1,11 @@
-import { Command, Option } from "commander";
 import { readFile } from "node:fs/promises";
 import chalk from "chalk";
+import { type Command, Option } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
+import { type JobState, type SpikeState, saveJobState } from "../lib/jobs";
 import { formatDuration, printJson, startSpinner } from "../lib/output";
 import { extractId, extractStatus, pickValue } from "../lib/utils";
-import { saveJobState, type JobState, type SpikeState } from "../lib/jobs";
 import { streamSpikeToTerminal } from "./stream";
 
 const YOUTUBE_URL_RE = /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|shorts|live|embed)|youtu\.be\/)/i;
@@ -21,7 +21,7 @@ interface AddOptions {
   batch?: string;
   concurrency?: number;
   analyze?: string;
-  spikes?: string;  // hidden alias for backwards compat
+  spikes?: string; // hidden alias for backwards compat
   stream?: boolean;
 }
 
@@ -107,17 +107,17 @@ async function submitBatchUrl(
   }
 }
 
-async function runBatchAdd(
-  filePath: string,
-  options: AddOptions,
-  command: Command,
-): Promise<void> {
+async function runBatchAdd(filePath: string, options: AddOptions, command: Command): Promise<void> {
   const config = (await readConfig()) ?? {};
   const tokenOverride = getTokenOverride(options as { token?: string }, command);
   const { token, expired } = resolveToken(config, tokenOverride);
 
   if (!token) {
-    console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+    console.error(
+      expired
+        ? "Token expired. Run `xevol login` to re-authenticate."
+        : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+    );
     process.exitCode = 1;
     return;
   }
@@ -202,13 +202,16 @@ export function registerAddCommand(program: Command): void {
     .addOption(new Option("--spikes <prompts>").hideHelp())
     .option("--stream", "Stream analysis content in real-time via SSE (use with --analyze)")
     .option("--json", "Raw JSON output")
-    .addHelpText('after', `
+    .addHelpText(
+      "after",
+      `
 Examples:
   $ xevol add "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   $ xevol add "https://youtu.be/dQw4w9WgXcQ" --lang kk
   $ xevol add "https://www.youtube.com/watch?v=..." --analyze review,summary --stream
   $ xevol add "https://www.youtube.com/watch?v=..." --no-wait
-  $ xevol add --batch urls.txt --concurrency 5`)
+  $ xevol add --batch urls.txt --concurrency 5`,
+    )
     .action(async (youtubeUrl: string, options: AddOptions, command) => {
       try {
         if (options.batch) {
@@ -218,7 +221,9 @@ Examples:
 
         // Validate YouTube URL before doing anything
         if (!YOUTUBE_URL_RE.test(youtubeUrl)) {
-          console.error(chalk.red("Error:") + " Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...");
+          console.error(
+            chalk.red("Error:") + " Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...",
+          );
           process.exitCode = 1;
           return;
         }
@@ -228,7 +233,11 @@ Examples:
         const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.");
+          console.error(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
+          );
           process.exitCode = 1;
           return;
         }
@@ -263,7 +272,12 @@ Examples:
 
         // Default: wait for completion. --no-wait skips.
         if (options.wait !== false) {
-          const promptIds = analyzeFlag ? analyzeFlag.split(",").map((s) => s.trim()).filter(Boolean) : [];
+          const promptIds = analyzeFlag
+            ? analyzeFlag
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [];
           const totalSteps = 1 + promptIds.length;
           if (!options.json) {
             console.log(chalk.dim(`[1/${totalSteps}] Transcribing...`));
@@ -323,9 +337,7 @@ Examples:
                   jobState.spikes.push(spikeState);
 
                   // If content already cached, print and skip streaming
-                  const cachedContent =
-                    (spikeResponse.content as string) ??
-                    (spikeResponse.markdown as string);
+                  const cachedContent = (spikeResponse.content as string) ?? (spikeResponse.markdown as string);
                   if (cachedContent) {
                     spinner.succeed(`Analysis ready: ${promptId} (cached)`);
                     if (!options.json) {
@@ -403,7 +415,8 @@ Examples:
                   })) as Record<string, unknown>;
 
                   // Poll if spike is being generated
-                  const spikes = (spikeResponse.spikes as unknown[] | undefined) ??
+                  const spikes =
+                    (spikeResponse.spikes as unknown[] | undefined) ??
                     (spikeResponse.data as unknown[] | undefined) ??
                     (spikeResponse.items as unknown[] | undefined);
 
@@ -421,7 +434,8 @@ Examples:
                       })) as Record<string, unknown>;
 
                       const content = spikeResponse.content ?? spikeResponse.markdown ?? spikeResponse.text;
-                      const innerSpikes = (spikeResponse.spikes as unknown[] | undefined) ??
+                      const innerSpikes =
+                        (spikeResponse.spikes as unknown[] | undefined) ??
                         (spikeResponse.data as unknown[] | undefined);
                       if (content || (Array.isArray(innerSpikes) && innerSpikes.length > 0)) {
                         break;

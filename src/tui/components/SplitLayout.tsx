@@ -1,5 +1,5 @@
-import React from "react";
 import { Box } from "ink";
+import React from "react";
 
 interface SplitLayoutProps {
   left: JSX.Element;
@@ -13,16 +13,15 @@ interface SplitLayoutProps {
  * Wide mode (>= splitAt columns): left panel (40%) + right panel (60%)
  * Narrow mode (< splitAt columns): only left panel (single column)
  */
-export function SplitLayout({
-  left,
-  right,
-  terminal,
-  splitAt = 120,
-}: SplitLayoutProps): JSX.Element {
+export function SplitLayout({ left, right, terminal, splitAt = 120 }: SplitLayoutProps): JSX.Element {
   const isWide = terminal.columns >= splitAt;
 
   if (!isWide) {
-    return <Box flexDirection="column" flexGrow={1} overflow="hidden">{left}</Box>;
+    return (
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        {left}
+      </Box>
+    );
   }
 
   const leftWidth = Math.floor(terminal.columns * 0.4);

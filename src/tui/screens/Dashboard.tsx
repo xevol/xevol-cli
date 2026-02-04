@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
-import { useApi } from "../hooks/useApi";
-import { Spinner } from "../components/Spinner";
-import { colors } from "../theme";
-import { pickValueOrDash } from "../../lib/utils";
-import { formatTimeAgo } from "../utils/time";
+import React, { useEffect, useMemo, useState } from "react";
 import { getHistory, type HistoryEntry } from "../../lib/history";
-import type { NavigationState } from "../hooks/useNavigation";
-import { useLayout } from "../context/LayoutContext";
 import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema } from "../../lib/schemas";
+import { pickValueOrDash } from "../../lib/utils";
+import { Spinner } from "../components/Spinner";
+import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import type { NavigationState } from "../hooks/useNavigation";
+import { colors } from "../theme";
+import { formatTimeAgo } from "../utils/time";
 
 // Module-level cache to avoid flash on re-mount
 let _historyCache: HistoryEntry[] | null = null;
@@ -17,6 +17,7 @@ let _historyCache: HistoryEntry[] | null = null;
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
+  onAddUrl?: () => void;
 }
 
 const LOGO_LINES = [
@@ -56,7 +57,7 @@ function normalizeRecent(data: Record<string, unknown>): RawItem[] {
   );
 }
 
-export function Dashboard({ version, navigation }: DashboardProps): JSX.Element {
+export function Dashboard({ version, navigation, onAddUrl }: DashboardProps): JSX.Element {
   const { exit } = useApp();
   const { setFooterHints, setFooterStatus } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -91,7 +92,9 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
   );
 
   // Validate response
-  const recentData = rawRecentData ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent") : null;
+  const recentData = rawRecentData
+    ? parseResponse(TranscriptionListResponseSchema, rawRecentData, "dashboard-recent")
+    : null;
 
   // Suppress loading indicator when we have data (useApi provides stale-while-revalidate)
   const recentLoading = rawRecentLoading && !recentData;
@@ -159,7 +162,7 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     }
 
     if (lower === "a") {
-      navigation.push("add-url");
+      onAddUrl?.();
       return;
     }
 
@@ -171,7 +174,7 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
           return;
         }
         if (item.value === "add-url") {
-          navigation.push("add-url");
+          onAddUrl?.();
           return;
         }
         if (item.value === "workspaces") {

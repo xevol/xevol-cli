@@ -55,4 +55,3 @@ export async function loadJobState(transcriptionId: string): Promise<JobState | 
     throw error;
   }
 }
-

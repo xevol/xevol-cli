@@ -8,14 +8,7 @@ const LOGO_LINES = [
   "  ██ ██ ▀█▄▄▄  ▀█▀  ▀███▀ ██",
 ];
 
-const GRADIENT = [
-  chalk.cyan,
-  chalk.cyan,
-  chalk.cyanBright,
-  chalk.greenBright,
-  chalk.green,
-  chalk.green,
-];
+const GRADIENT = [chalk.cyan, chalk.cyan, chalk.cyanBright, chalk.greenBright, chalk.green, chalk.green];
 
 export async function printHeader(version: string): Promise<void> {
   const config = await readConfig();

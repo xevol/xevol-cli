@@ -95,9 +95,10 @@ export function renderCards(items: CardItem[], opts: { startIndex: number }): st
       titleDisplay = titleDisplay.slice(0, Math.max(0, titleMaxWidth - 1)) + "…";
     }
 
-    const titlePadded = titleDisplay.length < titleMaxWidth
-      ? titleDisplay + " ".repeat(titleMaxWidth - titleDisplay.length)
-      : titleDisplay;
+    const titlePadded =
+      titleDisplay.length < titleMaxWidth
+        ? titleDisplay + " ".repeat(titleMaxWidth - titleDisplay.length)
+        : titleDisplay;
 
     const line1 = `${prefix}${chalk.dim(num)}  ${chalk.bold.white(titlePadded)}  ${chalk.dim(createdStr)}`;
 
@@ -162,10 +163,16 @@ export function startSpinner(text: string) {
     process.stderr.write(`${text}\n`);
     return {
       text,
-      succeed(msg?: string) { if (msg) process.stderr.write(`✔ ${msg}\n`); },
-      fail(msg?: string) { if (msg) process.stderr.write(`✖ ${msg}\n`); },
+      succeed(msg?: string) {
+        if (msg) process.stderr.write(`✔ ${msg}\n`);
+      },
+      fail(msg?: string) {
+        if (msg) process.stderr.write(`✖ ${msg}\n`);
+      },
       stop() {},
-      start() { return this; },
+      start() {
+        return this;
+      },
     } as ReturnType<typeof ora>;
   }
   return ora({ text, spinner: "dots" }).start();

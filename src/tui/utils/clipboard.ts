@@ -1,6 +1,6 @@
 import { exec } from "child_process";
-import { platform } from "os";
 import { existsSync } from "fs";
+import { platform } from "os";
 
 type ClipboardTool = { cmd: string; args: string[] };
 

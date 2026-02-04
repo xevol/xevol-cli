@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { printJson, startSpinner } from "../lib/output";
@@ -23,7 +23,7 @@ export function registerUsageCommand(program: Command): void {
           console.error(
             expired
               ? "Token expired. Run `xevol login` to re-authenticate."
-              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN."
+              : "Not logged in. Use xevol login --token <token> or set XEVOL_TOKEN.",
           );
           process.exitCode = 1;
           return;

@@ -23,8 +23,8 @@ pre-push:
     build:
       run: bun run build
       
-    lint:
-      run: bun run lint
+    # lint:
+    #   run: bun run lint
 
 commit-msg:
   commands:

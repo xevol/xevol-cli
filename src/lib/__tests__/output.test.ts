@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatDuration, formatStatus, divider } from "../output";
+import { divider, formatDuration, formatStatus } from "../output";
 
 describe("formatDuration", () => {
   test("returns dash for null", () => {

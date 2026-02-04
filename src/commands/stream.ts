@@ -1,8 +1,8 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { printJson } from "../lib/output";
-import { streamSSE, type SSEEvent } from "../lib/sse";
+import { type SSEEvent, streamSSE } from "../lib/sse";
 
 /** Default SSE idle timeout in ms */
 const SSE_IDLE_TIMEOUT_MS = 30_000;
@@ -45,81 +45,80 @@ export async function streamSpikeToTerminal(
   });
 
   try {
-  for await (const event of stream) {
-    resetIdleTimer();
-    if (event.id) {
-      lastEventId = event.id;
-    }
-
-    if (options.json) {
-      printJson(event);
-      continue;
-    }
-
-    // Handle "complete" event (spike was already done, returned as JSON)
-    if (event.event === "complete") {
-      try {
-        const parsed = JSON.parse(event.data) as {
-          status?: string;
-          data?: string;
-          content?: string;
-          markdown?: string;
-        };
-        const content = parsed.data ?? parsed.content ?? parsed.markdown ?? "";
-        fullContent += content;
-        process.stdout.write(content);
-      } catch {
-        fullContent += event.data;
-        process.stdout.write(event.data);
+    for await (const event of stream) {
+      resetIdleTimer();
+      if (event.id) {
+        lastEventId = event.id;
       }
-      continue;
-    }
 
-    // Handle streaming chunk events
-    if (event.event === "chunk" || event.event === "delta" || !event.event) {
-      // Try to parse data as JSON (some APIs wrap chunks)
-      try {
-        const parsed = JSON.parse(event.data) as { text?: string; content?: string; chunk?: string; delta?: string };
-        const text = parsed.text ?? parsed.content ?? parsed.chunk ?? parsed.delta ?? event.data;
-        fullContent += text;
-        process.stdout.write(text);
-      } catch {
-        // Plain text data
-        fullContent += event.data;
-        process.stdout.write(event.data);
+      if (options.json) {
+        printJson(event);
+        continue;
       }
-      continue;
-    }
 
-    // Handle done/end events
-    if (event.event === "done" || event.event === "end") {
-      // Some APIs send a final event with the complete content
-      if (event.data && event.data !== "[DONE]") {
+      // Handle "complete" event (spike was already done, returned as JSON)
+      if (event.event === "complete") {
         try {
-          const parsed = JSON.parse(event.data) as { content?: string; text?: string };
-          const text = parsed.content ?? parsed.text;
-          if (text && !fullContent) {
-            fullContent = text;
-            process.stdout.write(text);
-          }
+          const parsed = JSON.parse(event.data) as {
+            status?: string;
+            data?: string;
+            content?: string;
+            markdown?: string;
+          };
+          const content = parsed.data ?? parsed.content ?? parsed.markdown ?? "";
+          fullContent += content;
+          process.stdout.write(content);
         } catch {
-          // ignore
+          fullContent += event.data;
+          process.stdout.write(event.data);
         }
+        continue;
       }
-      continue;
+
+      // Handle streaming chunk events
+      if (event.event === "chunk" || event.event === "delta" || !event.event) {
+        // Try to parse data as JSON (some APIs wrap chunks)
+        try {
+          const parsed = JSON.parse(event.data) as { text?: string; content?: string; chunk?: string; delta?: string };
+          const text = parsed.text ?? parsed.content ?? parsed.chunk ?? parsed.delta ?? event.data;
+          fullContent += text;
+          process.stdout.write(text);
+        } catch {
+          // Plain text data
+          fullContent += event.data;
+          process.stdout.write(event.data);
+        }
+        continue;
+      }
+
+      // Handle done/end events
+      if (event.event === "done" || event.event === "end") {
+        // Some APIs send a final event with the complete content
+        if (event.data && event.data !== "[DONE]") {
+          try {
+            const parsed = JSON.parse(event.data) as { content?: string; text?: string };
+            const text = parsed.content ?? parsed.text;
+            if (text && !fullContent) {
+              fullContent = text;
+              process.stdout.write(text);
+            }
+          } catch {
+            // ignore
+          }
+        }
+        continue;
+      }
+
+      // Handle error events
+      if (event.event === "error") {
+        console.error(chalk.red(`\nStream error: ${event.data}`));
+      }
     }
 
-    // Handle error events
-    if (event.event === "error") {
-      console.error(chalk.red(`\nStream error: ${event.data}`));
-      continue;
+    // Ensure newline after streaming content
+    if (fullContent && !fullContent.endsWith("\n")) {
+      process.stdout.write("\n");
     }
-  }
-
-  // Ensure newline after streaming content
-  if (fullContent && !fullContent.endsWith("\n")) {
-    process.stdout.write("\n");
-  }
   } finally {
     clearTimeout(idleTimer);
   }
@@ -134,11 +133,14 @@ export function registerStreamCommand(program: Command): void {
     .argument("<spikeId>", "Analysis ID to stream")
     .option("--json", "Output raw SSE events as JSON")
     .option("--last-event-id <id>", "Resume from a specific event ID")
-    .addHelpText('after', `
+    .addHelpText(
+      "after",
+      `
 Examples:
   $ xevol stream abc123
   $ xevol stream abc123 --json
-  $ xevol stream abc123 --last-event-id 42`)
+  $ xevol stream abc123 --last-event-id 42`,
+    )
     .action(async (spikeId: string, options: StreamOptions, command) => {
       try {
         const config = (await readConfig()) ?? {};

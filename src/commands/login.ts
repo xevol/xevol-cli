@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { clearConfig, getTokenOverride, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
 import { printJson, startSpinner } from "../lib/output";
@@ -115,7 +115,11 @@ export function registerAuthCommands(program: Command): void {
         if (tokenOverride) {
           const { token, expired } = resolveToken(config, tokenOverride);
           if (!token) {
-            console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Token required. Use --token <token> or set XEVOL_TOKEN.");
+            console.error(
+              expired
+                ? "Token expired. Run `xevol login` to re-authenticate."
+                : "Token required. Use --token <token> or set XEVOL_TOKEN.",
+            );
             process.exitCode = 1;
             return;
           }
@@ -353,7 +357,11 @@ export function registerAuthCommands(program: Command): void {
         const { token, expired } = resolveToken(config, tokenOverride);
 
         if (!token) {
-          console.error(expired ? "Token expired. Run `xevol login` to re-authenticate." : "Not logged in. Use xevol login to authenticate.");
+          console.error(
+            expired
+              ? "Token expired. Run `xevol login` to re-authenticate."
+              : "Not logged in. Use xevol login to authenticate.",
+          );
           process.exitCode = 1;
           return;
         }

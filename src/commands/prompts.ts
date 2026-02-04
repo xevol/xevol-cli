@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { printJson, renderTable } from "../lib/output";
@@ -42,8 +42,8 @@ export function registerPromptsCommand(program: Command): void {
 
         if (options.csv) {
           const csvQuote = (v: string) => {
-            const sanitized = v.replace(/\n/g, ' ');
-            return sanitized.includes(',') || sanitized.includes('"')
+            const sanitized = v.replace(/\n/g, " ");
+            return sanitized.includes(",") || sanitized.includes('"')
               ? `"${sanitized.replace(/"/g, '""')}"`
               : sanitized;
           };
@@ -63,7 +63,10 @@ export function registerPromptsCommand(program: Command): void {
         }
 
         const truncate = (s: string, max: number) => {
-          const oneLine = s.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+          const oneLine = s
+            .replace(/[\r\n]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
           return oneLine.length > max ? oneLine.slice(0, max - 1) + "…" : oneLine;
         };
         const rows = items.map((item) => [item.id, item.description ? truncate(item.description, 60) : "—"]);

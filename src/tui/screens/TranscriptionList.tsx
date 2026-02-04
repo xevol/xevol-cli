@@ -1,29 +1,29 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { promises as fs } from "fs";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { promises as fs } from "fs";
 import path from "path";
-import { useApi } from "../hooks/useApi";
-import { usePagination } from "../hooks/usePagination";
-import { StatusBadge } from "../components/StatusBadge";
-import { Spinner } from "../components/Spinner";
-import { colors } from "../theme";
-import { fuzzyMatch, highlightMatch } from "../utils/fuzzyMatch";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
-import { pickValueOrDash } from "../../lib/utils";
 import { formatDurationCompact } from "../../lib/output";
-import { openUrl } from "../utils/openUrl";
-import { buildMarkdownFromAnalysis } from "../utils/markdown";
-import { formatTimeAgo } from "../utils/time";
-import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
-import { SplitLayout } from "../components/SplitLayout";
-import type { NavigationState } from "../hooks/useNavigation";
-import type { Hint } from "../components/Footer";
-import { useLayout } from "../context/LayoutContext";
-import { useInputLock } from "../context/InputContext";
 import { parseResponse } from "../../lib/parseResponse";
-import { TranscriptionListResponseSchema, AnalysisResponseSchema } from "../../lib/schemas";
+import { AnalysisResponseSchema, TranscriptionListResponseSchema } from "../../lib/schemas";
+import { pickValueOrDash } from "../../lib/utils";
+import type { Hint } from "../components/Footer";
+import { Spinner } from "../components/Spinner";
+import { SplitLayout } from "../components/SplitLayout";
+import { StatusBadge } from "../components/StatusBadge";
+import { useInputLock } from "../context/InputContext";
+import { useLayout } from "../context/LayoutContext";
+import { useApi } from "../hooks/useApi";
+import type { NavigationState } from "../hooks/useNavigation";
+import { usePagination } from "../hooks/usePagination";
+import { colors } from "../theme";
+import { fuzzyMatch, highlightMatch } from "../utils/fuzzyMatch";
+import { buildMarkdownFromAnalysis } from "../utils/markdown";
+import { openUrl } from "../utils/openUrl";
+import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
+import { formatTimeAgo } from "../utils/time";
 
 // Named constants (extracted from magic numbers)
 const CACHE_LIMIT = 50;
@@ -48,6 +48,8 @@ interface TranscriptionListProps {
   navigation: Pick<NavigationState, "push">;
   onBack: () => void;
   terminal: TerminalSize;
+  onAddUrl?: () => void;
+  refreshRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 type RawItem = Record<string, unknown>;
@@ -66,18 +68,9 @@ function normalizeListResponse(data: Record<string, unknown>) {
     (data.meta as Record<string, unknown> | undefined) ??
     {};
 
-  const page =
-    (data.page as number | undefined) ??
-    (pagination.page as number | undefined) ??
-    1;
-  const limit =
-    (data.limit as number | undefined) ??
-    (pagination.limit as number | undefined) ??
-    items.length;
-  const total =
-    (data.total as number | undefined) ??
-    (pagination.total as number | undefined) ??
-    items.length;
+  const page = (data.page as number | undefined) ?? (pagination.page as number | undefined) ?? 1;
+  const limit = (data.limit as number | undefined) ?? (pagination.limit as number | undefined) ?? items.length;
+  const total = (data.total as number | undefined) ?? (pagination.total as number | undefined) ?? items.length;
   const totalPages =
     (data.totalPages as number | undefined) ??
     (pagination.totalPages as number | undefined) ??
@@ -98,7 +91,15 @@ function unwrapAnalysis(data: Record<string, unknown> | null): Record<string, un
 }
 
 /** Memoized preview content to avoid re-parsing markdown on every render */
-function PreviewContent({ summary, width, maxLines }: { summary: string; width: number; maxLines: number }): JSX.Element {
+function PreviewContent({
+  summary,
+  width,
+  maxLines,
+}: {
+  summary: string;
+  width: number;
+  maxLines: number;
+}): JSX.Element {
   const rendered = useMemo(() => {
     const parsed = parseMarkdownStructure(summary, width);
     return renderMarkdownWindow(parsed, 0, maxLines).join("\n");
@@ -129,13 +130,13 @@ const ListRow = React.memo(function ListRow({ item, isSelected, isChecked, searc
         <Text color={isSelected ? colors.primary : colors.secondary}>{isSelected ? "›" : " "}</Text>
       </Box>
       <Box width={3}>
-        <Text color={isChecked ? colors.primary : colors.secondary}>
-          {isChecked ? "☑" : "☐"}
-        </Text>
+        <Text color={isChecked ? colors.primary : colors.secondary}>{isChecked ? "☑" : "☐"}</Text>
       </Box>
       <Box flexDirection="column" flexGrow={1}>
         <Box flexDirection="row" justifyContent="space-between">
-          <Text color={isSelected ? colors.primary : undefined}>{searchQuery && item.titleIndices.length > 0 ? item.titleHighlighted : item.title}</Text>
+          <Text color={isSelected ? colors.primary : undefined}>
+            {searchQuery && item.titleIndices.length > 0 ? item.titleHighlighted : item.title}
+          </Text>
           <Text color={colors.secondary}>{item.created}</Text>
         </Box>
         <Box flexDirection="row">
@@ -153,6 +154,8 @@ export function TranscriptionList({
   navigation,
   onBack,
   terminal,
+  onAddUrl,
+  refreshRef,
 }: TranscriptionListProps): JSX.Element {
   const { setFooterHints, setFooterStatus } = useLayout();
   const { setInputActive } = useInputLock();
@@ -193,13 +196,28 @@ export function TranscriptionList({
   const prevDataRef = useRef<Record<string, unknown> | null>(null);
   const lastPageRef = useRef(page);
 
-  const { data: rawData, loading, error, refresh } = useApi<Record<string, unknown>>(
+  const {
+    data: rawData,
+    loading,
+    error,
+    refresh,
+  } = useApi<Record<string, unknown>>(
     "/v1/transcriptions",
     {
       query: { page, limit, status, sort, q: searchQuery || undefined },
     },
     [page, limit, status, sort, searchQuery],
   );
+
+  // Expose refresh to parent via ref
+  useEffect(() => {
+    if (refreshRef) {
+      refreshRef.current = () => void refresh();
+    }
+    return () => {
+      if (refreshRef) refreshRef.current = null;
+    };
+  }, [refresh, refreshRef]);
 
   // Validate + keep previous data visible while loading new page (prevents flash/blank)
   const validatedData = rawData ? parseResponse(TranscriptionListResponseSchema, rawData, "transcription-list") : null;
@@ -280,12 +298,16 @@ export function TranscriptionList({
     });
 
     // Filter out optimistically deleted items
-    const filteredItems = deletedIds.length > 0
-      ? items.filter((item) => !deletedIds.includes(item.id))
-      : items;
+    const filteredItems = deletedIds.length > 0 ? items.filter((item) => !deletedIds.includes(item.id)) : items;
 
     // When no search query, return items without highlighting
-    if (!searchQuery) return filteredItems.map((item) => ({ ...item, titleHighlighted: item.title, fuzzyScore: 0, titleIndices: [] as number[] }));
+    if (!searchQuery)
+      return filteredItems.map((item) => ({
+        ...item,
+        titleHighlighted: item.title,
+        fuzzyScore: 0,
+        titleIndices: [] as number[],
+      }));
 
     // Server already filtered via `q` param — just add highlighting, don't filter again
     return filteredItems.map((item) => {
@@ -346,7 +368,10 @@ export function TranscriptionList({
         try {
           const config = (await readConfig()) ?? {};
           const { token } = resolveToken(config);
-          if (!token) { setPreviewLoading(false); return; }
+          if (!token) {
+            setPreviewLoading(false);
+            return;
+          }
           const apiUrl = resolveApiUrl(config);
           const rawResponse = (await apiFetch(`/v1/analysis/${selectedItem.id}`, {
             token,
@@ -358,7 +383,12 @@ export function TranscriptionList({
           const analysis = unwrapAnalysis(response);
           const preview = {
             title: pickValueOrDash(analysis ?? {}, ["title", "videoTitle", "name"]),
-            summary: ((analysis?.cleanContent as string) ?? (analysis?.content as string) ?? (analysis?.transcript as string) ?? "").slice(0, SUMMARY_SLICE),
+            summary: (
+              (analysis?.cleanContent as string) ??
+              (analysis?.content as string) ??
+              (analysis?.transcript as string) ??
+              ""
+            ).slice(0, SUMMARY_SLICE),
             status: pickValueOrDash(analysis ?? {}, ["status", "state"]),
           };
           // Evict oldest entry if cache exceeds limit
@@ -399,10 +429,7 @@ export function TranscriptionList({
   const listHeight = Math.max(1, terminal.rows - reservedRows);
   const itemsPerPage = Math.max(1, Math.floor(listHeight / itemHeight));
   const maxStart = Math.max(0, listItems.length - itemsPerPage);
-  const windowStart = Math.min(
-    Math.max(0, selectedIndex - Math.floor(itemsPerPage / 2)),
-    maxStart,
-  );
+  const windowStart = Math.min(Math.max(0, selectedIndex - Math.floor(itemsPerPage / 2)), maxStart);
   const visibleItems = listItems.slice(windowStart, windowStart + itemsPerPage);
 
   useEffect(() => {
@@ -433,6 +460,7 @@ export function TranscriptionList({
         hints.push({ key: "n/p", description: "page" });
       }
       hints.push({ key: "/", description: "search" });
+      hints.push({ key: "a", description: "add URL" });
       hints.push({ key: "r", description: "refresh" });
       hints.push({ key: "Esc", description: "back" });
       setFooterHints(hints);
@@ -443,7 +471,17 @@ export function TranscriptionList({
     if (totalPages > 1) statusParts.push(`Page ${page}/${totalPages}`);
     statusParts.push(`${total} items`);
     setFooterStatus(statusParts.join(" · "));
-  }, [confirmBatchDelete, confirmDelete, searchActive, selectedCount, setFooterHints, setFooterStatus, totalPages, page, total]);
+  }, [
+    confirmBatchDelete,
+    confirmDelete,
+    searchActive,
+    selectedCount,
+    setFooterHints,
+    setFooterStatus,
+    totalPages,
+    page,
+    total,
+  ]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedItem) return;
@@ -512,7 +550,7 @@ export function TranscriptionList({
       }
       const apiUrl = resolveApiUrl(config);
       const results = await Promise.allSettled(
-        idsToDelete.map(id => apiFetch(`/v1/transcriptions/${id}`, { method: "DELETE", token, apiUrl }))
+        idsToDelete.map((id) => apiFetch(`/v1/transcriptions/${id}`, { method: "DELETE", token, apiUrl })),
       );
       const failedIds = idsToDelete.filter((_, i) => results[i].status === "rejected");
       const succeededIds = idsToDelete.filter((_, i) => results[i].status === "fulfilled");
@@ -522,7 +560,7 @@ export function TranscriptionList({
       }
       await refresh();
       if (failedIds.length > 0) {
-        setDeletedIds(prev => prev.filter(id => !failedIds.includes(id)));
+        setDeletedIds((prev) => prev.filter((id) => !failedIds.includes(id)));
         setNotice(`Failed to delete ${failedIds.length} of ${idsToDelete.length}`);
       } else {
         setDeletedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
@@ -670,9 +708,7 @@ export function TranscriptionList({
     if (input === " ") {
       if (selectedItem) {
         setSelectedIds((prev) =>
-          prev.includes(selectedItem.id)
-            ? prev.filter((id) => id !== selectedItem.id)
-            : [...prev, selectedItem.id],
+          prev.includes(selectedItem.id) ? prev.filter((id) => id !== selectedItem.id) : [...prev, selectedItem.id],
         );
       }
       return;
@@ -723,6 +759,12 @@ export function TranscriptionList({
 
     if (lower === "r") {
       void refresh();
+      return;
+    }
+
+    if (lower === "a") {
+      onAddUrl?.();
+      return;
     }
   });
 
@@ -753,11 +795,7 @@ export function TranscriptionList({
       )}
 
       {loading && !data && <Spinner label="Fetching transcriptions…" />}
-      {error && (
-        <Text color={colors.error}>
-          {error} (press r to retry)
-        </Text>
-      )}
+      {error && <Text color={colors.error}>{error} (press r to retry)</Text>}
 
       {!loading && !error && listItems.length === 0 && !prevDataRef.current && (
         <Text color={colors.secondary}>No transcriptions found.</Text>
@@ -815,7 +853,6 @@ export function TranscriptionList({
           <Text color={colors.secondary}>{notice}</Text>
         </Box>
       )}
-
     </Box>
   );
 
@@ -826,19 +863,27 @@ export function TranscriptionList({
     <Box flexDirection="column" paddingX={1} paddingY={1} height={previewHeight} overflow="hidden">
       {previewData ? (
         <Box flexDirection="column">
-          <Text bold color={colors.primary}>{previewData.title}</Text>
+          <Text bold color={colors.primary}>
+            {previewData.title}
+          </Text>
           <Box marginTop={1} flexDirection="row">
             <StatusBadge status={previewData.status} />
             <Text color={colors.secondary}> {previewData.status}</Text>
           </Box>
           {previewData.summary ? (
             <Box marginTop={1} flexDirection="column">
-              <PreviewContent summary={previewData.summary} width={previewWidth} maxLines={Math.max(4, terminal.rows - 10)} />
+              <PreviewContent
+                summary={previewData.summary}
+                width={previewWidth}
+                maxLines={Math.max(4, terminal.rows - 10)}
+              />
             </Box>
           ) : null}
         </Box>
       ) : previewLoading ? (
-        <Text color={colors.secondary} dimColor>loading…</Text>
+        <Text color={colors.secondary} dimColor>
+          loading…
+        </Text>
       ) : (
         <Text color={colors.secondary}>Select a transcription to preview</Text>
       )}
@@ -846,13 +891,7 @@ export function TranscriptionList({
   );
 
   if (isWide) {
-    return (
-      <SplitLayout
-        left={listPanel}
-        right={previewPanel}
-        terminal={terminal}
-      />
-    );
+    return <SplitLayout left={listPanel} right={previewPanel} terminal={terminal} />;
   }
 
   return listPanel;

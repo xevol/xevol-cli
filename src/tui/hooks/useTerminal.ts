@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
 import { useStdout } from "ink";
+import { useEffect, useRef, useState } from "react";
 
 interface TerminalSize {
   columns: number;

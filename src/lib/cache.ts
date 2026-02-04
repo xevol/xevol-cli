@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { promises as fs } from "fs";
-import path from "path";
 import os from "os";
+import path from "path";
 
 const CACHE_DIR = path.join(os.homedir(), ".xevol", "cache");
 
@@ -19,9 +19,9 @@ function memCacheEvict(): void {
 
 /** Default TTLs in milliseconds */
 export const TTL = {
-  LIST: 5 * 60 * 1000,       // 5 minutes for lists
-  ANALYSIS: 60 * 60 * 1000,  // 1 hour for analysis/prompts
-  STATUS: 5 * 60 * 1000,     // 5 minutes for status/usage
+  LIST: 5 * 60 * 1000, // 5 minutes for lists
+  ANALYSIS: 60 * 60 * 1000, // 1 hour for analysis/prompts
+  STATUS: 5 * 60 * 1000, // 5 minutes for status/usage
 } as const;
 
 interface CacheEntry<T> {
@@ -39,7 +39,8 @@ export function cacheKey(endpoint: string, params?: Record<string, unknown>): st
 /** Infer TTL from endpoint path */
 export function inferTTL(endpoint: string): number {
   if (endpoint.includes("/transcriptions") || endpoint.includes("/list")) return TTL.LIST;
-  if (endpoint.includes("/analysis") || endpoint.includes("/prompts") || endpoint.includes("/spikes")) return TTL.ANALYSIS;
+  if (endpoint.includes("/analysis") || endpoint.includes("/prompts") || endpoint.includes("/spikes"))
+    return TTL.ANALYSIS;
   return TTL.STATUS;
 }
 
@@ -111,9 +112,7 @@ export async function clearCache(): Promise<void> {
   try {
     const files = await fs.readdir(CACHE_DIR);
     await Promise.all(
-      files
-        .filter((f) => f.endsWith(".json"))
-        .map((f) => fs.unlink(path.join(CACHE_DIR, f)).catch(() => {})),
+      files.filter((f) => f.endsWith(".json")).map((f) => fs.unlink(path.join(CACHE_DIR, f)).catch(() => {})),
     );
   } catch {
     // Directory may not exist

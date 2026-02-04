@@ -1,7 +1,7 @@
-import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
-import { colors } from "../theme";
+import React, { useEffect } from "react";
 import type { Hint } from "../components/Footer";
+import { colors } from "../theme";
 
 interface PlaceholderProps {
   title: string;

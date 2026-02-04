@@ -1,5 +1,5 @@
-import { Command } from "commander";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
@@ -9,7 +9,7 @@ const USER_CONFIG_PATH = path.join(CONFIG_DIR, "config.json");
 
 /** Allowed config keys and their descriptions */
 const ALLOWED_KEYS: Record<string, string> = {
-  "apiUrl": "Base API URL",
+  apiUrl: "Base API URL",
   "default.lang": "Default output language for transcriptions",
   "default.limit": "Default page size for list command",
   "api.timeout": "API request timeout in milliseconds",
@@ -74,9 +74,7 @@ function setNestedValue(obj: UserConfig, dotKey: string, value: unknown): void {
 }
 
 export function registerConfigCommand(program: Command): void {
-  const configCmd = program
-    .command("config", { hidden: true })
-    .description("Manage local CLI configuration");
+  const configCmd = program.command("config", { hidden: true }).description("Manage local CLI configuration");
 
   configCmd
     .command("get")
