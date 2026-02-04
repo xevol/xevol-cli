@@ -10,6 +10,7 @@ import { parseResponse } from "../../lib/parseResponse";
 import { AnalysisResponseSchema, PromptsResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
 import { type SSEEvent, streamSSE } from "../../lib/sse";
 import { pickValue } from "../../lib/utils";
+import type { Hint } from "../components/Footer";
 import { Spinner } from "../components/Spinner";
 import { StatusBadge } from "../components/StatusBadge";
 import { useLayout } from "../context/LayoutContext";

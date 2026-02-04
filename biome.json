@@ -1,24 +1,43 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
-  "extends": ["../biome.json"],
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "ignoreUnknown": false,
     "includes": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.jsx"]
   },
   "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
     "lineWidth": 120
   },
   "javascript": {
     "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "arrowParentheses": "always",
       "trailingCommas": "all"
     }
   },
   "linter": {
+    "enabled": true,
     "rules": {
+      "recommended": true,
+      "a11y": {
+        "recommended": true
+      },
       "style": {
+        "useConst": "error",
+        "noNonNullAssertion": "warn",
         "useImportType": "warn"
       },
       "suspicious": {
+        "noExplicitAny": "warn",
         "noConsole": {
           "level": "warn",
           "options": {
@@ -28,6 +47,7 @@
         "noControlCharactersInRegex": "warn"
       },
       "correctness": {
+        "noUnusedVariables": "warn",
         "useExhaustiveDependencies": "warn",
         "useHookAtTopLevel": "warn"
       }
