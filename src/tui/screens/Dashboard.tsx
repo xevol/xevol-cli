@@ -5,6 +5,7 @@ import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema } from "../../lib/schemas";
 import { pickValueOrDash } from "../../lib/utils";
 import { Spinner } from "../components/Spinner";
+import { useInputLock } from "../context/InputContext";
 import { useLayout } from "../context/LayoutContext";
 import { useApi } from "../hooks/useApi";
 import type { NavigationState } from "../hooks/useNavigation";
@@ -59,6 +60,7 @@ function normalizeRecent(data: Record<string, unknown>): RawItem[] {
 
 export function Dashboard({ version, navigation, onAddUrl }: DashboardProps): JSX.Element {
   const { exit } = useApp();
+  const { isInputActive } = useInputLock();
   const { setFooterHints, setFooterStatus } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -141,6 +143,7 @@ export function Dashboard({ version, navigation, onAddUrl }: DashboardProps): JS
   }, [selectableCount, selectedIndex]);
 
   useInput((input, key) => {
+    if (isInputActive) return;
     const lower = input.toLowerCase();
     if (key.upArrow || lower === "k") {
       if (selectableCount > 0) {

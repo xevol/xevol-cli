@@ -6,13 +6,8 @@ interface ModalProps {
 }
 
 /**
- * Full-screen modal overlay with opaque dark background.
- *
- * Uses position="absolute" to overlay on top of sibling content.
- * The backgroundColor fills the entire area with dark spaces via Ink's
- * renderBackground, making it visually opaque over the content beneath.
- *
- * Must be rendered inside a parent Box with explicit or flex-derived dimensions.
+ * Full-screen modal overlay.
+ * Children should manage their own input locking via useInputLock.
  */
 export function Modal({ children }: ModalProps): JSX.Element {
   return (

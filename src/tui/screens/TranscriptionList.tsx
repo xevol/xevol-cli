@@ -158,7 +158,7 @@ export function TranscriptionList({
   refreshRef,
 }: TranscriptionListProps): JSX.Element {
   const { setFooterHints, setFooterStatus } = useLayout();
-  const { setInputActive } = useInputLock();
+  const { isInputActive, setInputActive } = useInputLock();
   const [status] = useState<string | undefined>(params?.status);
   const [sort] = useState<string | undefined>(params?.sort);
   const [searchActive, setSearchActive] = useState(false);
@@ -626,7 +626,7 @@ export function TranscriptionList({
   }, [selectedItem]);
 
   useInput((input, key) => {
-    if (isDeleting || isBatchDeleting || isBatchExporting) return;
+    if (isInputActive || isDeleting || isBatchDeleting || isBatchExporting) return;
     const lower = input.toLowerCase();
 
     if (confirmBatchDelete) {

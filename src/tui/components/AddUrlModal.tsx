@@ -2,14 +2,13 @@ import { Box, Text, useInput } from "ink";
 import InkSpinner from "ink-spinner";
 import TextInput from "ink-text-input";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { apiFetch } from "../../../lib/api";
-import { readConfig, resolveApiUrl, resolveToken } from "../../../lib/config";
-import { parseResponse } from "../../../lib/parseResponse";
-import { AddResponseSchema, SpikeCreateResponseSchema } from "../../../lib/schemas";
-import { extractId, extractStatus, pickValue } from "../../../lib/utils";
-import { useInputLock } from "../../context/InputContext";
-import { colors } from "../../theme";
-import { Modal } from "./Modal";
+import { apiFetch } from "../../lib/api";
+import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
+import { parseResponse } from "../../lib/parseResponse";
+import { AddResponseSchema, SpikeCreateResponseSchema } from "../../lib/schemas";
+import { extractId, extractStatus, pickValue } from "../../lib/utils";
+import { useInputLock } from "../context/InputContext";
+import { colors } from "../theme";
 
 type Phase = "input" | "submitting" | "processing" | "creating-spike" | "done" | "error";
 
@@ -99,11 +98,11 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
     };
   }, [phase]);
 
-  // Lock global input for entire modal lifecycle — screens behind won't respond to keys
+  // Lock global input when in text input phase
   useEffect(() => {
-    setInputActive(true);
+    setInputActive(phase === "input");
     return () => setInputActive(false);
-  }, [setInputActive]);
+  }, [phase, setInputActive]);
 
   const runPipeline = useCallback(
     async (youtubeUrl: string) => {
@@ -267,7 +266,7 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
   const modalWidth = 60;
 
   return (
-    <Modal>
+    <Box flexDirection="column" alignItems="center" justifyContent="center" width="100%" height="100%">
       <Box
         flexDirection="column"
         width={modalWidth}
@@ -275,7 +274,6 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
         borderColor={colors.primary}
         paddingX={2}
         paddingY={1}
-        backgroundColor="#111111"
       >
         <Text bold color={colors.primary}>
           Add YouTube URL
@@ -373,6 +371,6 @@ export function AddUrlModal({ onDismiss, onSubmitted }: AddUrlModalProps): JSX.E
           </Box>
         )}
       </Box>
-    </Modal>
+    </Box>
   );
 }
