@@ -6,7 +6,6 @@ import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../li
 import { divider, printJson, startSpinner } from "../lib/output";
 
 interface SpikesOptions {
-  generate?: boolean;
   prompt?: string;
   lang?: string;
   json?: boolean;
@@ -95,7 +94,6 @@ export function registerAnalyzeCommand(program: Command): void {
     .alias("spikes")
     .description("View or generate analysis for a transcription")
     .argument("<id>", "Transcription ID")
-    .option("--generate", "Generate analysis if missing")
     .option("--prompt <id>", "Prompt ID for generation")
     .option("--lang <code>", "Output language", "en")
     .option("--json", "Raw JSON output")
@@ -106,7 +104,7 @@ export function registerAnalyzeCommand(program: Command): void {
 Examples:
   $ xevol analyze abc123
   $ xevol analyze abc123 --prompt facts --lang kk
-  $ xevol analyze abc123 --generate --prompt review --json`,
+  $ xevol analyze abc123 --prompt review --json`,
     )
     .action(async (id: string, options: SpikesOptions, command) => {
       try {
