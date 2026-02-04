@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from "ink";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useLayout } from "../context/LayoutContext";
 import { colors } from "../theme";
 
@@ -44,7 +44,7 @@ export function Help({ onClose }: HelpProps): JSX.Element {
     ]);
   }, [setFooterHints]);
 
-  useInput((_input, key) => {
+  useInput((input, key) => {
     if (key.escape || key.backspace) {
       onClose();
     }

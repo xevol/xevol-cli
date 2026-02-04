@@ -1,6 +1,6 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { promises as fs } from "fs";
 import { Box, Text, useInput } from "ink";
+import path from "path";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
@@ -20,6 +20,7 @@ import { copyToClipboard } from "../utils/clipboard";
 import { buildMarkdownFromAnalysis } from "../utils/markdown";
 import { openUrl } from "../utils/openUrl";
 import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
+import { wrapText } from "../utils/wrapText";
 
 interface TerminalSize {
   columns: number;
@@ -275,7 +276,7 @@ export function TranscriptionDetail({ id, navigation, onBack, terminal }: Transc
   useEffect(() => {
     setScrollOffset(0);
     userScrolledRef.current = false;
-  }, []);
+  }, [activeTab]);
 
   // Create spike and stream content
   const createAndStreamSpike = useCallback(

@@ -18,10 +18,10 @@ export function useApi<T>(path: string, options: ApiRequestOptions = {}, deps: D
   const optionsRef = useRef<ApiRequestOptions>(options);
   const mountedRef = useRef(true);
 
-  const _optionsKey = useMemo(() => JSON.stringify(options), [options]);
+  const optionsKey = useMemo(() => JSON.stringify(options), [options]);
   useEffect(() => {
     optionsRef.current = options;
-  }, [options]);
+  }, [optionsKey]);
 
   useEffect(() => {
     mountedRef.current = true;

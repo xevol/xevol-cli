@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import React from "react";
 import type { ScreenName } from "../hooks/useNavigation";
 import { colors } from "../theme";
 

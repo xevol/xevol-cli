@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import chalk from "chalk";
 import { Command } from "commander";
+import { createRequire } from "module";
 import { registerAddCommand } from "./commands/add";
 import { registerAnalyzeCommand } from "./commands/analyze";
 import { registerConfigCommand } from "./commands/config";
@@ -17,7 +18,9 @@ import { registerViewCommand } from "./commands/view";
 import { registerWorkspaceCommand } from "./commands/workspace";
 import { printHeader } from "./lib/header";
 import { launchTUI } from "./tui/app";
-import { version } from "./version";
+
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
 
 const SKIP_HEADER_COMMANDS = new Set(["login", "config", "export", "delete", "open", "workspace", "tui"]);
 

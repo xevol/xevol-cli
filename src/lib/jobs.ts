@@ -3,9 +3,9 @@
  * Stores job state in ~/.xevol/jobs/<transcriptionId>.json
  */
 
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { promises as fs } from "fs";
+import os from "os";
+import path from "path";
 
 const JOBS_DIR = path.join(os.homedir(), ".xevol", "jobs");
 
@@ -37,7 +37,7 @@ function jobPath(transcriptionId: string): string {
 export async function saveJobState(state: JobState): Promise<void> {
   await ensureJobsDir();
   state.updatedAt = new Date().toISOString();
-  const payload = `${JSON.stringify(state, null, 2)}\n`;
+  const payload = JSON.stringify(state, null, 2) + "\n";
   await fs.writeFile(jobPath(state.transcriptionId), payload, {
     encoding: "utf8",
     mode: 0o600,

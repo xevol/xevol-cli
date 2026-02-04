@@ -2,7 +2,9 @@ import chalk from "chalk";
 import Table from "cli-table3";
 import ora from "ora";
 
-export function printJson(_data: unknown): void {}
+export function printJson(data: unknown): void {
+  console.log(JSON.stringify(data, null, 2));
+}
 
 export function formatDuration(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
@@ -90,7 +92,7 @@ export function renderCards(items: CardItem[], opts: { startIndex: number }): st
 
     let titleDisplay = item.title;
     if (titleDisplay.length > titleMaxWidth) {
-      titleDisplay = `${titleDisplay.slice(0, Math.max(0, titleMaxWidth - 1))}…`;
+      titleDisplay = titleDisplay.slice(0, Math.max(0, titleMaxWidth - 1)) + "…";
     }
 
     const titlePadded =

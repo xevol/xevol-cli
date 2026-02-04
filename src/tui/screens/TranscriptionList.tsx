@@ -1,7 +1,7 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { promises as fs } from "fs";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
+import path from "path";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { readConfig, resolveApiUrl, resolveToken } from "../../lib/config";
@@ -48,6 +48,8 @@ interface TranscriptionListProps {
   navigation: Pick<NavigationState, "push">;
   onBack: () => void;
   terminal: TerminalSize;
+  onAddUrl?: () => void;
+  refreshRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 type RawItem = Record<string, unknown>;
@@ -147,7 +149,14 @@ const ListRow = React.memo(function ListRow({ item, isSelected, isChecked, searc
   );
 });
 
-export function TranscriptionList({ params, navigation, onBack, terminal }: TranscriptionListProps): JSX.Element {
+export function TranscriptionList({
+  params,
+  navigation,
+  onBack,
+  terminal,
+  onAddUrl,
+  refreshRef,
+}: TranscriptionListProps): JSX.Element {
   const { setFooterHints, setFooterStatus } = useLayout();
   const { setInputActive } = useInputLock();
   const [status] = useState<string | undefined>(params?.status);
@@ -199,6 +208,16 @@ export function TranscriptionList({ params, navigation, onBack, terminal }: Tran
     },
     [page, limit, status, sort, searchQuery],
   );
+
+  // Expose refresh to parent via ref
+  useEffect(() => {
+    if (refreshRef) {
+      refreshRef.current = () => void refresh();
+    }
+    return () => {
+      if (refreshRef) refreshRef.current = null;
+    };
+  }, [refresh, refreshRef]);
 
   // Validate + keep previous data visible while loading new page (prevents flash/blank)
   const validatedData = rawData ? parseResponse(TranscriptionListResponseSchema, rawData, "transcription-list") : null;
@@ -305,7 +324,7 @@ export function TranscriptionList({ params, navigation, onBack, terminal }: Tran
   // Reset cursor to top when search results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, []);
+  }, [searchQuery]);
 
   const clampedIndex = Math.min(selectedIndex, Math.max(0, listItems.length - 1));
   useEffect(() => {
@@ -396,7 +415,7 @@ export function TranscriptionList({ params, navigation, onBack, terminal }: Tran
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
       controller.abort();
     };
-  }, [isWide, selectedItem?.id, selectedItem]);
+  }, [isWide, selectedItem?.id]);
 
   const reservedRows =
     6 +
@@ -441,6 +460,7 @@ export function TranscriptionList({ params, navigation, onBack, terminal }: Tran
         hints.push({ key: "n/p", description: "page" });
       }
       hints.push({ key: "/", description: "search" });
+      hints.push({ key: "a", description: "add URL" });
       hints.push({ key: "r", description: "refresh" });
       hints.push({ key: "Esc", description: "back" });
       setFooterHints(hints);
@@ -739,6 +759,12 @@ export function TranscriptionList({ params, navigation, onBack, terminal }: Tran
 
     if (lower === "r") {
       void refresh();
+      return;
+    }
+
+    if (lower === "a") {
+      onAddUrl?.();
+      return;
     }
   });
 

@@ -1,5 +1,5 @@
 import { Box, Text, useApp, useInput } from "ink";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getHistory, type HistoryEntry } from "../../lib/history";
 import { parseResponse } from "../../lib/parseResponse";
 import { TranscriptionListResponseSchema } from "../../lib/schemas";
@@ -17,9 +17,10 @@ let _historyCache: HistoryEntry[] | null = null;
 interface DashboardProps {
   version: string;
   navigation: Pick<NavigationState, "push">;
+  onAddUrl?: () => void;
 }
 
-const _LOGO_LINES = [
+const LOGO_LINES = [
   "                          ██ ",
   "  ██ ██ ▄█▀█▄ ██ ██ ▄███▄ ██ ",
   "   ███  ██▄█▀ ██▄██ ██ ██ ██ ",
@@ -56,7 +57,7 @@ function normalizeRecent(data: Record<string, unknown>): RawItem[] {
   );
 }
 
-export function Dashboard({ version, navigation }: DashboardProps): JSX.Element {
+export function Dashboard({ version, navigation, onAddUrl }: DashboardProps): JSX.Element {
   const { exit } = useApp();
   const { setFooterHints, setFooterStatus } = useLayout();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -74,7 +75,7 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     })();
   }, []);
 
-  const _hasLocalHistory = historyItems.length > 0;
+  const hasLocalHistory = historyItems.length > 0;
 
   // API recent — only fetch if no local history
   const {
@@ -161,7 +162,7 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
     }
 
     if (lower === "a") {
-      navigation.push("add-url");
+      onAddUrl?.();
       return;
     }
 
@@ -173,7 +174,7 @@ export function Dashboard({ version, navigation }: DashboardProps): JSX.Element 
           return;
         }
         if (item.value === "add-url") {
-          navigation.push("add-url");
+          onAddUrl?.();
           return;
         }
         if (item.value === "workspaces") {

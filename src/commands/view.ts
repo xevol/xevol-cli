@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { formatDuration, printJson } from "../lib/output";
+import { divider, formatDuration, printJson } from "../lib/output";
 import { pickValue } from "../lib/utils";
 import { buildMarkdownFromAnalysis } from "../tui/utils/markdown";
 
@@ -77,16 +77,16 @@ export function registerViewCommand(program: Command): void {
           }
           return;
         }
-        const _title = pickValue(data, ["title", "videoTitle", "name"]) ?? "Untitled";
+        const title = pickValue(data, ["title", "videoTitle", "name"]) ?? "Untitled";
         const channel = pickValue(data, ["channel", "channelTitle", "author"]) ?? "Unknown";
         const channelHandle = pickValue(data, ["channelHandle", "handle", "channelTag"]);
-        const _duration = formatDuration(
+        const duration = formatDuration(
           (data.duration as number | string | undefined) ??
             (data.durationSec as number | undefined) ??
             (data.durationSeconds as number | undefined),
         );
-        const _lang = pickValue(data, ["lang", "outputLang", "language"]) ?? "—";
-        const _status = pickValue(data, ["status", "state"]) ?? "—";
+        const lang = pickValue(data, ["lang", "outputLang", "language"]) ?? "—";
+        const status = pickValue(data, ["status", "state"]) ?? "—";
         const url = pickValue(data, ["url", "youtubeUrl", "videoUrl"]);
 
         if (options.raw) {
@@ -97,14 +97,21 @@ export function registerViewCommand(program: Command): void {
             process.exitCode = 1;
             return;
           }
+          console.log(content);
           return;
         }
 
-        const _channelLabel = channelHandle
+        const channelLabel = channelHandle
           ? `${channel} (${channelHandle.startsWith("@") ? channelHandle : `@${channelHandle}`})`
           : channel;
+
+        console.log(chalk.bold(title));
+        console.log(`Channel: ${channelLabel}`);
+        console.log(`Duration: ${duration} | Lang: ${lang} | Status: ${status}`);
         if (url) {
+          console.log(`URL: ${url}`);
         }
+        console.log(divider());
 
         const summary =
           (data.summary as string | undefined) ??
@@ -112,10 +119,15 @@ export function registerViewCommand(program: Command): void {
           (data.analysis as Record<string, unknown> | undefined)?.summary?.toString();
 
         if (summary) {
+          console.log(summary);
         } else {
+          console.log("No summary available.");
         }
+
+        console.log(divider());
+        console.log("Full transcript: use --raw");
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

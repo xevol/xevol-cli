@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import { streamSpikeToTerminal } from "../commands/stream";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { printJson, startSpinner } from "../lib/output";
+import { divider, printJson, startSpinner } from "../lib/output";
 
 interface SpikesOptions {
   generate?: boolean;
@@ -139,11 +139,15 @@ Examples:
         if (results.length === 0 && spikeId) {
           if (useStreaming) {
             // Print title/header before streaming
-            const _title =
+            const title =
               (response.title as string | undefined) ?? (response.transcriptionTitle as string | undefined) ?? id;
+
+            console.log(chalk.bold(`Analysis for "${title}"`));
+            console.log(divider());
 
             const result = await streamSpikeToTerminal(spikeId, token, apiUrl);
             if (!result.content) {
+              console.log("No analysis content available.");
             }
             return;
           }
@@ -163,11 +167,14 @@ Examples:
           return;
         }
 
-        const _title =
+        const title =
           (response.title as string | undefined) ??
           (response.transcriptionTitle as string | undefined) ??
           (results[0]?.title as string | undefined) ??
           id;
+
+        console.log(chalk.bold(`Analysis for "${title}"`));
+        console.log(divider());
 
         const content = results
           .map((result) => extractResultText(result))
@@ -175,10 +182,12 @@ Examples:
           .join("\n\n");
 
         if (content) {
+          console.log(content);
         } else {
+          console.log("No analysis content available.");
         }
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

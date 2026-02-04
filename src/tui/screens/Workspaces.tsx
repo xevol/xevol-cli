@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from "ink";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { readConfig, updateConfig } from "../../lib/config";
 import { parseResponse } from "../../lib/parseResponse";
 import { WorkspacesResponseSchema } from "../../lib/schemas";

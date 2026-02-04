@@ -1,6 +1,6 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_API_URL, readConfig, writeConfig, type XevolConfig } from "../../lib/config";
 import { parseResponse } from "../../lib/parseResponse";
 import { StatusResponseSchema } from "../../lib/schemas";
@@ -181,7 +181,7 @@ export function Settings({ onBack }: SettingsProps): JSX.Element {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [config, editValue, editingKey, setEditingKey]);
+  }, [config, editValue, editingKey]);
 
   useInput((input, key) => {
     const lower = input.toLowerCase();

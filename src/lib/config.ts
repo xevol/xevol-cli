@@ -1,7 +1,7 @@
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import type { Command } from "commander";
+import { promises as fs } from "fs";
+import os from "os";
+import path from "path";
 
 export interface XevolConfig {
   apiUrl?: string;
@@ -58,7 +58,7 @@ export async function readConfig(): Promise<XevolConfig | null> {
 
 export async function writeConfig(config: XevolConfig): Promise<void> {
   await ensureConfigDir();
-  const payload = `${JSON.stringify(config, null, 2)}\n`;
+  const payload = JSON.stringify(config, null, 2) + "\n";
   await fs.writeFile(CONFIG_PATH, payload, { encoding: "utf8", mode: 0o600 });
   _configCache = config;
   _configCacheAt = Date.now();

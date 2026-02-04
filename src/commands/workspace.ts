@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken, updateConfig } from "../lib/config";
-import { printJson, startSpinner } from "../lib/output";
+import { printJson, renderTable, startSpinner } from "../lib/output";
 
 interface WorkspaceListOptions {
   json?: boolean;
@@ -129,11 +129,17 @@ export function registerWorkspaceCommand(program: Command): void {
         const items = normalizeWorkspaceResponse(response);
         const activeWorkspaceId = config.workspaceId;
 
+        console.log("");
+        console.log(`  ${chalk.bold("Workspaces")}  ${chalk.dim(`${items.length} total`)}`);
+        console.log("");
+
         if (items.length === 0) {
+          console.log("  No workspaces found.");
+          console.log("");
           return;
         }
 
-        const _rows = items.map((item) => {
+        const rows = items.map((item) => {
           const id = extractWorkspaceId(item) ?? "-";
           let name = extractWorkspaceName(item);
           if (activeWorkspaceId && id !== "-" && id === activeWorkspaceId) {
@@ -144,8 +150,11 @@ export function registerWorkspaceCommand(program: Command): void {
           const members = extractMemberCount(item);
           return [id, name, role, balance, members];
         });
+
+        console.log(renderTable(["ID", "Name", "Role", "Balance", "Members"], rows));
+        console.log("");
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });
@@ -182,7 +191,7 @@ export function registerWorkspaceCommand(program: Command): void {
         const workspaceMatch = items.find((item) => extractWorkspaceId(item) === id);
 
         if (!workspaceMatch) {
-          console.error(`${chalk.red("Error:")} Workspace not found: ${id}`);
+          console.error(chalk.red("Error:") + ` Workspace not found: ${id}`);
           process.exitCode = 1;
           return;
         }
@@ -190,9 +199,10 @@ export function registerWorkspaceCommand(program: Command): void {
         await updateConfig({ workspaceId: id });
 
         const displayName = extractWorkspaceName(workspaceMatch);
-        const _name = displayName === "-" ? "Unknown" : displayName;
+        const name = displayName === "-" ? "Unknown" : displayName;
+        console.log(`Switched to workspace ${name} (${id})`);
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

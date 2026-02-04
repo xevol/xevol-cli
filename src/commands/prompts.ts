@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { printJson } from "../lib/output";
+import { printJson, renderTable } from "../lib/output";
 
 interface PromptsOptions {
   json?: boolean;
@@ -41,18 +41,24 @@ export function registerPromptsCommand(program: Command): void {
         }
 
         if (options.csv) {
-          const _csvQuote = (v: string) => {
+          const csvQuote = (v: string) => {
             const sanitized = v.replace(/\n/g, " ");
             return sanitized.includes(",") || sanitized.includes('"')
               ? `"${sanitized.replace(/"/g, '""')}"`
               : sanitized;
           };
-          for (const _item of items) {
+          console.log("ID,Description");
+          for (const item of items) {
+            console.log([item.id, item.description ?? "—"].map(csvQuote).join(","));
           }
           return;
         }
 
+        console.log(chalk.bold(`Available Prompts (${items.length} total)`));
+        console.log("");
+
         if (items.length === 0) {
+          console.log("No prompts found.");
           return;
         }
 
@@ -61,11 +67,12 @@ export function registerPromptsCommand(program: Command): void {
             .replace(/[\r\n]+/g, " ")
             .replace(/\s+/g, " ")
             .trim();
-          return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
+          return oneLine.length > max ? oneLine.slice(0, max - 1) + "…" : oneLine;
         };
-        const _rows = items.map((item) => [item.id, item.description ? truncate(item.description, 60) : "—"]);
+        const rows = items.map((item) => [item.id, item.description ? truncate(item.description, 60) : "—"]);
+        console.log(renderTable(["ID", "Description"], rows));
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

@@ -1,9 +1,9 @@
-import { promises as fs } from "node:fs";
 import chalk from "chalk";
 import type { Command } from "commander";
+import { promises as fs } from "fs";
 import { apiFetch } from "../lib/api";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { startSpinner } from "../lib/output";
+import { printJson, startSpinner } from "../lib/output";
 import { pickValue } from "../lib/utils";
 
 interface ExportOptions {
@@ -131,7 +131,7 @@ Examples:
 
         if (options.output) {
           await fs.writeFile(options.output, output, "utf-8");
-          console.error(`${chalk.green("✓")} Written to ${options.output}`);
+          console.error(chalk.green("✓") + ` Written to ${options.output}`);
         } else {
           process.stdout.write(output);
           // Ensure trailing newline for terminal
@@ -140,7 +140,7 @@ Examples:
           }
         }
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

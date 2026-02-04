@@ -44,26 +44,36 @@ export function registerUsageCommand(program: Command): void {
           return;
         }
 
-        const _plan = (data.plan as string) ?? "free";
-        const _status = (data.status as string) ?? "active";
-        const _period = (data.period as string) ?? "month";
+        const plan = (data.plan as string) ?? "free";
+        const status = (data.status as string) ?? "active";
+        const period = (data.period as string) ?? "month";
         const email = (data.email as string) ?? "";
         const usage = (data.usage as Record<string, number>) ?? {};
         const limits = (data.limits as Record<string, number>) ?? {};
         const periodEnd = data.current_period_end as string | null;
 
-        const _txCount = usage.transcriptions ?? 0;
-        const _txLimit = limits.transcriptions ?? "∞";
+        const txCount = usage.transcriptions ?? 0;
+        const txLimit = limits.transcriptions ?? "∞";
+
+        console.log("");
+        console.log(`  ${chalk.bold("Usage & Subscription")}`);
+        console.log("");
         if (email) {
+          console.log(`  ${chalk.dim("Email:")}      ${email}`);
         }
+        console.log(`  ${chalk.dim("Plan:")}       ${plan}`);
+        console.log(`  ${chalk.dim("Status:")}     ${status}`);
+        console.log(`  ${chalk.dim("Usage:")}      ${txCount} / ${txLimit} transcriptions (this ${period})`);
         if (periodEnd) {
           const endDate = new Date(periodEnd);
           if (!Number.isNaN(endDate.getTime())) {
-            const _daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / 86400000));
+            const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / 86400000));
+            console.log(`  ${chalk.dim("Renews:")}     ${endDate.toLocaleDateString()} (${daysLeft} days)`);
           }
         }
+        console.log("");
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

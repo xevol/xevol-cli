@@ -1,5 +1,6 @@
 import { Text } from "ink";
 import InkSpinner from "ink-spinner";
+import React from "react";
 import { colors } from "../theme";
 
 interface SpinnerProps {

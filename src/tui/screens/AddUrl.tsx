@@ -14,6 +14,7 @@ import { useLayout } from "../context/LayoutContext";
 import { colors } from "../theme";
 import { copyToClipboard } from "../utils/clipboard";
 import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
+import { wrapText } from "../utils/wrapText";
 
 interface TerminalSize {
   columns: number;
@@ -81,7 +82,7 @@ export function AddUrl({ onBack, terminal }: AddUrlProps): JSX.Element {
   const { setInputActive } = useInputLock();
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("input");
-  const [_statusText, setStatusText] = useState("");
+  const [statusText, setStatusText] = useState("");
   const [errorText, setErrorText] = useState("");
   const [streamContent, setStreamContent] = useState("");
   const [scrollOffset, setScrollOffset] = useState(0);

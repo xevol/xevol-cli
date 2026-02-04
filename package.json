@@ -10,14 +10,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target node --minify",
-    "prepublishOnly": "bun run build",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --write src/",
-    "typecheck": "tsc --noEmit",
-    "prepare": "lefthook install",
-    "changeset": "changeset",
-    "version": "changeset version",
-    "release": "changeset publish"
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
@@ -61,11 +54,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.13",
-    "@changesets/changelog-github": "^0.5.2",
-    "@changesets/cli": "^2.29.8",
     "@types/bun": "latest",
-    "lefthook": "^2.1.0",
     "typescript": "^5.7.0"
   }
 }

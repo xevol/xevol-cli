@@ -11,7 +11,7 @@ import { streamSpikeToTerminal } from "./stream";
 const YOUTUBE_URL_RE = /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|shorts|live|embed)|youtu\.be\/)/i;
 
 /** Default SSE idle timeout in ms */
-const _SSE_IDLE_TIMEOUT_MS = 30_000;
+const SSE_IDLE_TIMEOUT_MS = 30_000;
 
 interface AddOptions {
   lang?: string;
@@ -124,7 +124,7 @@ async function runBatchAdd(filePath: string, options: AddOptions, command: Comma
 
   const concurrency = options.concurrency ?? 3;
   if (!Number.isFinite(concurrency) || concurrency < 1) {
-    console.error(`${chalk.red("Error:")} Concurrency must be a positive number.`);
+    console.error(chalk.red("Error:") + " Concurrency must be a positive number.");
     process.exitCode = 1;
     return;
   }
@@ -133,7 +133,7 @@ async function runBatchAdd(filePath: string, options: AddOptions, command: Comma
   try {
     rawFile = await readFile(filePath, "utf8");
   } catch (error) {
-    console.error(`${chalk.red("Error:")} Unable to read batch file: ${filePath}`);
+    console.error(chalk.red("Error:") + ` Unable to read batch file: ${filePath}`);
     console.error((error as Error).message);
     process.exitCode = 1;
     return;
@@ -145,7 +145,7 @@ async function runBatchAdd(filePath: string, options: AddOptions, command: Comma
     .filter((line) => line.length > 0 && !line.startsWith("#"));
 
   if (urls.length === 0) {
-    console.error(`${chalk.red("Error:")} No URLs found in batch file.`);
+    console.error(chalk.red("Error:") + " No URLs found in batch file.");
     process.exitCode = 1;
     return;
   }
@@ -185,6 +185,8 @@ async function runBatchAdd(filePath: string, options: AddOptions, command: Comma
     console.error(`Summary: ${successCount} succeeded, ${failureCount} failed`);
     return;
   }
+
+  console.log(`Summary: ${successCount} succeeded, ${failureCount} failed`);
 }
 
 export function registerAddCommand(program: Command): void {
@@ -220,7 +222,7 @@ Examples:
         // Validate YouTube URL before doing anything
         if (!YOUTUBE_URL_RE.test(youtubeUrl)) {
           console.error(
-            `${chalk.red("Error:")} Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...`,
+            chalk.red("Error:") + " Not a valid YouTube URL. Expected youtube.com/watch?v=... or youtu.be/...",
           );
           process.exitCode = 1;
           return;
@@ -248,7 +250,7 @@ Examples:
         })) as Record<string, unknown>;
 
         const id = extractId(response);
-        const _status = extractStatus(response) ?? "pending";
+        const status = extractStatus(response) ?? "pending";
 
         if (!id) {
           if (options.json) {
@@ -261,6 +263,8 @@ Examples:
         }
 
         if (!options.json) {
+          console.log(`${chalk.green("✔")} Transcription created: ${id}`);
+          console.log(`Status: ${status}`);
         }
 
         // --analyze takes precedence, fall back to --spikes (hidden alias)
@@ -274,8 +278,9 @@ Examples:
                 .map((s) => s.trim())
                 .filter(Boolean)
             : [];
-          const _totalSteps = 1 + promptIds.length;
+          const totalSteps = 1 + promptIds.length;
           if (!options.json) {
+            console.log(chalk.dim(`[1/${totalSteps}] Transcribing...`));
           }
 
           const finalResponse = await waitForCompletion(id, token, apiUrl);
@@ -287,7 +292,7 @@ Examples:
           if (analyzeFlag && finalResponse) {
             const status = extractStatus(finalResponse)?.toLowerCase() ?? "";
             if (!status.includes("complete")) {
-              console.error(`${chalk.red("Error:")} Transcription did not complete — skipping analysis generation.`);
+              console.error(chalk.red("Error:") + " Transcription did not complete — skipping analysis generation.");
             } else if (options.stream) {
               // === STREAMING MODE ===
               const lang = options.lang ?? "en";
@@ -306,8 +311,9 @@ Examples:
 
               for (let i = 0; i < promptIds.length; i++) {
                 const promptId = promptIds[i];
-                const _stepNum = i + 2; // step 1 was transcription
+                const stepNum = i + 2; // step 1 was transcription
                 if (!options.json) {
+                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating analysis: ${promptId}...`));
                 }
                 const spinner = startSpinner(`Creating analysis: ${promptId}...`);
 
@@ -335,6 +341,8 @@ Examples:
                   if (cachedContent) {
                     spinner.succeed(`Analysis ready: ${promptId} (cached)`);
                     if (!options.json) {
+                      console.log(chalk.bold.cyan(`\n─── ${promptId} ───`));
+                      console.log(cachedContent);
                     }
                     spikeState.status = "complete";
                     await saveJobState(jobState);
@@ -364,6 +372,7 @@ Examples:
                   await saveJobState(jobState);
 
                   if (!options.json) {
+                    console.log(chalk.green(`✔ Analysis complete: ${promptId}`));
                   }
                   spikeResults.push({ spikeId, promptId, content: result.content });
                 } catch (error) {
@@ -377,6 +386,7 @@ Examples:
               }
 
               if (!options.json) {
+                console.log(chalk.green(`\n✔ All done. Resume anytime: xevol resume ${id}`));
               } else {
                 printJson({ transcription: finalResponse, spikes: spikeResults });
               }
@@ -387,8 +397,9 @@ Examples:
 
               for (let i = 0; i < promptIds.length; i++) {
                 const promptId = promptIds[i];
-                const _stepNum = i + 2;
+                const stepNum = i + 2;
                 if (!options.json) {
+                  console.log(chalk.dim(`[${stepNum}/${totalSteps}] Generating analysis: ${promptId}...`));
                 }
                 const spinner = startSpinner(`Generating analysis: ${promptId}...`);
                 const started = Date.now();

@@ -9,6 +9,7 @@ import { useLayout } from "../context/LayoutContext";
 import { useApi } from "../hooks/useApi";
 import { colors } from "../theme";
 import { parseMarkdownStructure, renderMarkdownWindow } from "../utils/renderMarkdown";
+import { wrapText } from "../utils/wrapText";
 
 interface TerminalSize {
   columns: number;

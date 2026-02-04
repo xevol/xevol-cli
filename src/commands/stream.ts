@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { Command } from "commander";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
 import { printJson } from "../lib/output";
-import { streamSSE } from "../lib/sse";
+import { type SSEEvent, streamSSE } from "../lib/sse";
 
 /** Default SSE idle timeout in ms */
 const SSE_IDLE_TIMEOUT_MS = 30_000;
@@ -23,6 +23,7 @@ export async function streamSpikeToTerminal(
   options: { json?: boolean; lastEventId?: string; header?: string } = {},
 ): Promise<{ lastEventId?: string; content: string }> {
   if (options.header) {
+    console.log(chalk.bold.cyan(`\n─── ${options.header} ───`));
   }
 
   let lastEventId: string | undefined = options.lastEventId;
@@ -164,6 +165,7 @@ Examples:
         });
 
         if (!options.json && result.content) {
+          console.log(chalk.green("\n✔ Stream complete"));
         }
       } catch (error) {
         console.error(chalk.red((error as Error).message));

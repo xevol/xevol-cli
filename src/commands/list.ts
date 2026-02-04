@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import { apiFetch } from "../lib/api";
 import { cacheKey, getCached, setCache, TTL } from "../lib/cache";
 import { getTokenOverride, readConfig, resolveApiUrl, resolveToken } from "../lib/config";
-import { type CardItem, formatDuration, formatDurationCompact, printJson } from "../lib/output";
+import { type CardItem, formatDuration, formatDurationCompact, printJson, renderCards } from "../lib/output";
 import { pickValueOrDash } from "../lib/utils";
 
 function formatCreatedAt(raw: string | undefined): string {
@@ -149,28 +149,35 @@ Examples:
         const { items, page, total, totalPages } = normalizeListResponse(response);
 
         if (options.csv) {
-          const _csvQuote = (v: string) => {
+          const csvQuote = (v: string) => {
             const sanitized = v.replace(/\n/g, " ");
             return sanitized.includes(",") || sanitized.includes('"')
               ? `"${sanitized.replace(/"/g, '""')}"`
               : sanitized;
           };
+          console.log("ID,Status,Lang,Duration,Channel,Title,Created");
           for (const item of items) {
-            const _id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
-            const _status = pickValueOrDash(item, ["status", "state"]);
-            const _lang = pickValueOrDash(item, ["lang", "outputLang", "language"]);
+            const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
+            const status = pickValueOrDash(item, ["status", "state"]);
+            const lang = pickValueOrDash(item, ["lang", "outputLang", "language"]);
             const durationRaw =
               (item.duration as number | string | undefined) ??
               (item.durationSec as number | undefined) ??
               (item.durationSeconds as number | undefined) ??
               (item.lengthSec as number | undefined);
-            const _duration = formatDuration(durationRaw ?? "—");
-            const _channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
-            const _title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
-            const _created = formatCreatedAt(item.createdAt as string | undefined);
+            const duration = formatDuration(durationRaw ?? "—");
+            const channel = pickValueOrDash(item, ["channel", "channelTitle", "author", "uploader"]);
+            const title = pickValueOrDash(item, ["title", "videoTitle", "name"]);
+            const created = formatCreatedAt(item.createdAt as string | undefined);
+            console.log([id, status, lang, duration, channel, title, created].map(csvQuote).join(","));
           }
           return;
         }
+
+        // Header
+        console.log("");
+        console.log(`  ${chalk.bold("Transcriptions")}  ${chalk.dim(`${total} total · page ${page}/${totalPages}`)}`);
+        console.log("");
 
         const cards: CardItem[] = items.map((item) => {
           const id = pickValueOrDash(item, ["id", "transcriptionId", "_id"]);
@@ -189,15 +196,20 @@ Examples:
         });
 
         if (cards.length === 0) {
+          console.log("  No transcriptions found.");
           return;
         }
 
-        const _startIndex = (page - 1) * (options.limit ?? 20) + 1;
+        const startIndex = (page - 1) * (options.limit ?? 20) + 1;
+        console.log(renderCards(cards, { startIndex }));
 
         if (totalPages > 1 && page < totalPages) {
+          console.log("");
+          console.log(chalk.dim(`  Page ${page} of ${totalPages} — use --page ${page + 1} for next`));
         }
+        console.log("");
       } catch (error) {
-        console.error(`${chalk.red("Error:")} ${(error as Error).message}`);
+        console.error(chalk.red("Error:") + " " + (error as Error).message);
         process.exitCode = 1;
       }
     });

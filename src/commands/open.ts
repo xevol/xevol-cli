@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import chalk from "chalk";
+import { spawn } from "child_process";
 import type { Command } from "commander";
 
 function openUrl(url: string): void {
@@ -19,7 +19,7 @@ function openUrl(url: string): void {
 
   const child = spawn(cmd, args, { stdio: "ignore", detached: true });
   child.on("error", (error) => {
-    console.error(`${chalk.red("Error:")} ${error.message}`);
+    console.error(chalk.red("Error:") + " " + error.message);
     process.exitCode = 1;
   });
   child.unref();

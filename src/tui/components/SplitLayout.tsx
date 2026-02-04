@@ -1,4 +1,5 @@
 import { Box } from "ink";
+import React from "react";
 
 interface SplitLayoutProps {
   left: JSX.Element;
