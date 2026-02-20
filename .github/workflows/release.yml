@@ -86,7 +86,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Update Homebrew Formula
-        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.VERSION }}
@@ -94,6 +93,12 @@ jobs:
           SHA_DARWIN_X64: ${{ steps.hashes.outputs.SHA_DARWIN_X64 }}
           SHA_DARWIN_ARM64: ${{ steps.hashes.outputs.SHA_DARWIN_ARM64 }}
         run: |
+          # Skip if no TAP_GITHUB_TOKEN is set
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "⚠️ TAP_GITHUB_TOKEN not set, skipping Homebrew formula update"
+            exit 0
+          fi
+          
           # Clone homebrew-tap repo
           git clone https://github.com/xevol/homebrew-tap.git /tmp/homebrew-tap
           cd /tmp/homebrew-tap
